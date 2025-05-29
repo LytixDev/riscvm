@@ -369,6 +369,34 @@ bool execute_instruction(RiscVM *vm, u32 inst)
     return false;
 }
 
+void dump_regs(RiscVM *vm, bool ignore_zero)
+{
+    for (u32 i = 0; i < 32; i++) {
+        s64 value = vm->regs[i];
+        if (ignore_zero && value == 0) {
+            continue;
+        }
+        printf("x%d = %ld\n", i, value);
+    }
+}
+
+void dump_regs_to_buffer(RiscVM *vm, u8 *buf, size_t buf_size, bool ignore_zero)
+{
+    size_t offset = 0;
+    for (u32 i = 0; i < 32; i++) {
+        s64 value = vm->regs[i];
+        if (ignore_zero && value == 0) {
+            continue;
+        }
+        int written = snprintf(buf + offset, buf_size - offset, "x%d = %ld\n", i, value);
+        if (written < 0 || (size_t)written >= buf_size - offset) {
+            // Prevent overflow
+            break;
+        }
+        offset += written;
+    }
+}
+
 
 void execute_until_halt(RiscVM *vm, u32 instructions[1024])
 {

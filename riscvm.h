@@ -160,6 +160,8 @@ typedef struct {
 
 
 /* Functions */
+void dump_regs(RiscVM *vm, bool ignore_zero);
+void dump_regs_to_buffer(RiscVM *vm, u8 *buf, size_t buf_size, bool ignore_zero);
 bool execute_instruction(RiscVM *vm, u32 inst);
 void execute_until_halt(RiscVM *vm, u32 instructions[1024]);
 

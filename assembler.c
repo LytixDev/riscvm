@@ -194,10 +194,9 @@ static u32 encode_stype(u8 rs1, u8 rs2, s32 imm, u8 opcode, u8 funct3)
            (opcode & 0x7F);
 }
 
-static u32 encode_btype(u8 rs1, u8 rs2, u8 imm, u8 opcode, u8 funct3)
+static u32 encode_btype(u8 rs1, u8 rs2, s32 imm, u8 opcode, u8 funct3)
 {
     /* Immediate is 13-bit signed, but bit 0 is always 0 (2-byte aligned) */
-    
     u32 imm_12   = (imm >> 12) & 0x1;    // bit 12
     u32 imm_11   = (imm >> 11) & 0x1;    // bit 11  
     u32 imm_10_5 = (imm >> 5) & 0x3F;    // bits 10:5
@@ -266,7 +265,7 @@ static u32 encode_inst(Assembler *ass, u32 mnemonic_id, s32 rd, s32 rs1, s32 rs2
         return encode_rtype(rd, rs1, imm & 0x1F, OPCODE_OP_IMM, FUNCT7_SRA, FUNCT3_SRL_SRA);
 
     case MNEMONIC_BNE:
-        return encode_btype(rs1, rs2, imm, OPCODE_BRANCH, FUNCT3_BNE);
+        return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BNE);
     }
 }
 
@@ -371,7 +370,7 @@ static u32 assemble_next_inst(Assembler *ass)
     /* Only progress here if mnemonic is not a label */
     s32 mnemonic_id = match_mnemonic(mnemonic);
     if (mnemonic_id == -1) {
-        printf("Unknown mnemonic\n");
+        printf("Unknown mnemonic '%s'\n", mnemonic);
         ass->had_error = true;
         return 0;
     }
@@ -471,20 +470,8 @@ s32 assemble_file(u8 *input_file, u32 instructions[1024])
     return ass.inst_count;
 }
 
-int main(void)
-{
-    u32 inst[1024];
-    s32 inst_count = assemble_file("tests/simp.s", inst);
-
-    RiscVM vm = {0};
-    execute_until_halt(&vm, inst);
-    printf("x2 = %zu\n", vm.regs[2]);
-    printf("x3 = %zu\n", vm.regs[3]);
-    printf("x4 = %zu\n", vm.regs[4]);
-    printf("x5 = %zu\n", vm.regs[5]);
-
-    // TODOS:
-    // - Resolve labels (pre-pass)
-    // - Parse and use labels
-    // - Register indirect addressing mode `lw x1, 8(x2)`
-}
+// TODO: 
+// - The assembler should also have a decode of an encoded instruction. Useful for testing.
+// - Tab support
+// - Register indirect addressing mode `lw x1, 8(x2)`
+// - more rubost testing
