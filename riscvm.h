@@ -53,6 +53,8 @@ typedef enum {
 } RegNames;
 
 typedef enum {
+    OPCODE_HALT      = 0b0000000, // Custom special Opcode.
+
     OPCODE_OP        = 0b0110011, // R-type
     OPCODE_OP_32     = 0b0111011, // R-type, 32-bit
 
@@ -158,12 +160,8 @@ typedef struct {
 
 
 /* Functions */
-u32 encode_rtype(u8 rd, u8 rs1, u8 rs2, u8 opcode, u8 funct7, u8 funct3);
-u32 encode_itype_op(u8 rd, u8 rs1, s32 imm, u8 opcode, u8 funct3);
-u32 encode_itype_load(u8 rd, u8 rs1, s32 imm, u8 funct3);
-u32 encode_stype(u8 rs1, u8 rs2, s32 imm, u8 opcode, u8 funct3);
-
-void execute_instruction(RiscVM *vm, u32 inst);
+bool execute_instruction(RiscVM *vm, u32 inst);
+void execute_until_halt(RiscVM *vm, u32 instructions[1024]);
 
 
 

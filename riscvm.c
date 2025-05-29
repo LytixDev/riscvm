@@ -20,6 +20,7 @@
 
 
 /* Converts a signed number from a smaller bit-width to a larger one without changing its value */
+// TODO: Figure out if this is actually correct.
 static s32 sign_extend(s32 imm, s32 bit_width) 
 {
     int shift = 32 - bit_width;
@@ -67,48 +68,7 @@ static void mem_store64(RiscVM *vm, u64 addr, u64 val)
     *(u64 *)&vm->memory[addr] = val;
 }
 
-u32 encode_rtype(u8 rd, u8 rs1, u8 rs2, u8 opcode, u8 funct7, u8 funct3)
-{
-    return ((funct7 & 0x7F) << 25) |
-           ((rs2 & 0x1F) << 20) |
-           ((rs1 & 0x1F) << 15) |
-           ((funct3 & 0x07) << 12) |
-           ((rd & 0x1F) << 7) |
-           (opcode & 0x7F);
-}
-
-u32 encode_itype_op(u8 rd, u8 rs1, s32 imm, u8 opcode, u8 funct3)
-{
-    return ((imm & 0xFFF) << 20) |
-           ((rs1 & 0x1F) << 15) |
-           ((funct3 & 0x07) << 12) |
-           ((rd & 0x1F) << 7) |
-           (opcode & 0x7F);
-}
-
-u32 encode_itype_load(u8 rd, u8 rs1, s32 imm, u8 funct3)
-{
-    return ((imm & 0xFFF) << 20) |
-           ((rs1 & 0x1F) << 15) |
-           ((funct3 & 0x7) << 12) |
-           ((rd & 0x1F) << 7) |
-           OPCODE_LOAD;
-}
-
-u32 encode_stype(u8 rs1, u8 rs2, s32 imm, u8 opcode, u8 funct3)
-{
-    u32 imm11_5 = (imm >> 5) & 0x7F;
-    u32 imm4_0  = imm & 0x1F;
-    return (imm11_5 << 25) |
-           ((rs2 & 0x1F) << 20) |
-           ((rs1 & 0x1F) << 15) |
-           ((funct3 & 0x7) << 12) |
-           ((imm4_0 & 0x1F) << 7) |
-           (opcode & 0x7F);
-}
-
-
-void execute_instruction(RiscVM *vm, u32 inst)
+bool execute_instruction(RiscVM *vm, u32 inst)
 {
     vm->steps += 1;
     u8 opcode = inst & 0x7F;
@@ -117,6 +77,10 @@ void execute_instruction(RiscVM *vm, u32 inst)
     default:
         printf("Unknown opcode: 0x%02X\n", opcode);
         break;
+
+    case OPCODE_HALT:
+        return true;
+
     /* 
      * R-type:
      *   31      25 24   20 19   15 14   12 11   7 6     0
@@ -307,119 +271,124 @@ void execute_instruction(RiscVM *vm, u32 inst)
     }; break;
 
     /* 
-     * B-type
+     * B-type:
+     * 31   30-25   24-20   19-15   14-12   11-8   7   6-0
+     * [imm12][imm10:5][ rs2 ][ rs1 ][funct3][imm4:1][imm11][opcode]
      *
      * Handles:
      * BEQ, BNE, BLT, BGE, BLTU, BGEU
+     *
+     * NOTE:
+     *  - The immediate is always signed, and PC-relative, so must be sign-extended and added to pc.
+     *  - The LSB of the immediate is always 0.
      */
-    /*
     case OPCODE_BRANCH: {
+        u8 funct3 = (inst >> 12) & 0x7;
+        u8 rs1 = (inst >> 15) & 0x1F;
+        u8 rs2 = (inst >> 20) & 0x1F;
+
+        u32 imm11 = (inst >> 7) & 0x1;
+        u32 imm4_1 = (inst >> 8) & 0xF;
+        u32 imm10_5 = (inst >> 25) & 0x3F;
+        u32 imm12 = (inst >> 31) & 0x1;
+
+        s32 imm = (imm12 << 12) | (imm11 << 11) | (imm10_5 << 5) | (imm4_1 << 1);
+        imm = sign_extend(imm, 13);
+
+        bool do_branch = false;
+        switch (funct3) {
+        case FUNCT3_BEQ:
+            do_branch = (vm->regs[rs1] == vm->regs[rs2]);
+            break;
+        case FUNCT3_BNE:
+            do_branch = (vm->regs[rs1] != vm->regs[rs2]);
+            break;
+        case FUNCT3_BLT:
+            do_branch = ((s64)vm->regs[rs1] < (s64)vm->regs[rs2]);
+            break;
+        case FUNCT3_BGE:
+            do_branch = ((s64)vm->regs[rs1] >= (s64)vm->regs[rs2]);
+            break;
+        case FUNCT3_BLTU:
+            do_branch = (vm->regs[rs1] < vm->regs[rs2]);
+            break;
+        case FUNCT3_BGEU:
+            do_branch = (vm->regs[rs1] >= vm->regs[rs2]);
+            break;
+        default:
+            // TODO: Handle invalid funct3
+            break;
+        }
+
+        if (do_branch) {
+            vm->pc += imm;
+        } else {
+            vm->pc += 4;
+        }
     }; break;
-    */
 
-    // TODO: U and J types
+    /* U-type  */
+    case OPCODE_LUI: {
+        u8 rd = (inst >> 7) & 0x1F;
+        s32 imm = inst & 0xFFFFF000;
+        vm->regs[rd] = imm;
+        vm->pc += 4;
+    }; break;
+    case OPCODE_AUIPC: {
+        u8 rd = (inst >> 7) & 0x1F;
+        s32 imm = inst & 0xFFFFF000;
+        vm->regs[rd] = vm->pc + imm;
+        vm->pc += 4;
+    }; break;
+
+    case OPCODE_JAL: {
+        u8 rd = (inst >> 7) & 0x1F;
+        s32 imm =
+            ((inst >> 21) & 0x3FF) << 1 |  // imm[10:1]
+            ((inst >> 20) & 0x1) << 11 |   // imm[11]
+            ((inst >> 12) & 0xFF) << 12 |  // imm[19:12]
+            ((inst >> 31) & 0x1) << 20;    // imm[20]
+
+        imm = sign_extend(imm, 21);
+        vm->regs[rd] = vm->pc + 4;
+        vm->pc += imm;
+    }; break;
+    case OPCODE_JALR: {
+        u8 rd = (inst >> 7) & 0x1F;
+        u8 funct3 = (inst >> 12) & 0x07;
+        u8 rs1 = (inst >> 15) & 0x1F;
+        s32 imm = ((s32)inst) >> 20; // full sign-extend
+
+        u64 target = (vm->regs[rs1] + imm) & ~1ULL;
+        vm->regs[rd] = vm->pc + 4;
+        vm->pc = target;
+    }; break;
 
     }
+
+    return false;
 }
 
 
-int test(void)
+void execute_until_halt(RiscVM *vm, u32 instructions[1024])
 {
-    RiscVM vm = {0};
-
-    vm.regs[2] = 10;
-    vm.regs[3] = 20;
-    vm.regs[4] = 1;
-    vm.regs[5] = 3;
-    vm.regs[6] = 7;
-    vm.regs[9] = 2;
-
-    u32 insts[] = {
-        encode_rtype(7, 2, 3, OPCODE_OP, FUNCT7_ADD, FUNCT3_ADD_SUB),        // x7 = x2 + x3 = 30
-        encode_rtype(8, 4, 9, OPCODE_OP, FUNCT7_SLL, FUNCT3_SLL),            // x8 = x4 << x9 = 4
-        encode_rtype(9, 5, 8, OPCODE_OP, FUNCT7_OR, FUNCT3_OR),              // x9 = x5 | x8 = 7
-        encode_rtype(10, 7, 9, OPCODE_OP, FUNCT7_XOR, FUNCT3_XOR),           // x10 = 30 ^ 7 = 25
-        encode_rtype(1, 10, 6, OPCODE_OP, FUNCT7_SUB, FUNCT3_ADD_SUB),       // x1 = 25 - 7 = 18
-        encode_itype_op(11, 2, 42, OPCODE_OP_IMM, FUNCT3_ADD_SUB),           // x11 = x2 + 42 = 52
-        encode_itype_op(12, 2, 0x0F0, OPCODE_OP_IMM, FUNCT3_AND),            // x12 = x2 & 0xF0 = 0
-        encode_itype_op(13, 2, 3, OPCODE_OP_IMM, FUNCT3_OR),                 // x13 = x2 | 3 = 11
-        encode_itype_op(14, 2, 1, OPCODE_OP_IMM, FUNCT3_SLL),                // x14 = x2 << 1 = 20
-        encode_itype_op(15, 2, 1, OPCODE_OP_IMM, FUNCT3_SRL_SRA),            // x15 = x2 >> 1 (logical) = 5
-        encode_itype_op(16, 2, -1, OPCODE_OP_IMM, FUNCT3_XOR),               // x16 = x2 ^ -1 = ~x2 = -11
-        encode_itype_op(17, 2, -5, OPCODE_OP_IMM, FUNCT3_SLT),               // x17 = (10 < -5)? 0 : 0
-        encode_itype_op(18, 2, 20, OPCODE_OP_IMM, FUNCT3_SLT),               // x18 = (10 < 20)? 1 : 0
-    };
-
-    for (int i = 0; i < sizeof(insts)/sizeof(insts[0]); i++) {
-        execute_instruction(&vm, insts[i]);
-    }
-
-    printf("x1  = %zu\n", vm.regs[1]);  // 18
-    printf("x11 = %zu\n", vm.regs[11]); // 52
-    printf("x12 = %zu\n", vm.regs[12]); // 0
-    printf("x13 = %zu\n", vm.regs[13]); // 11
-    printf("x14 = %zu\n", vm.regs[14]); // 20
-    printf("x15 = %zu\n", vm.regs[15]); // 5
-    printf("x16 = %zd\n", vm.regs[16]); // -11
-    printf("x17 = %zu\n", vm.regs[17]); // 0
-    printf("x18 = %zu\n", vm.regs[18]); // 1
+    while (!execute_instruction(vm, instructions[vm->pc >> 2]));
 }
 
-int test2(void) 
-{
-    RiscVM vm = {0};
-
-    vm.regs[REG_SP] = 100;
-    vm.regs[REG_GP] = 1234;
-    vm.regs[REG_TP] = -1;
-
-    u32 insts[] = {
-        // sw gp, 0(sp)
-        encode_stype(REG_SP, REG_GP, 0, OPCODE_STORE, FUNCT3_SW),
-        // sb tp, 4(sp)
-        encode_stype(REG_SP, REG_TP, 4, OPCODE_STORE, FUNCT3_SB),
-        // lw t0, 0(sp)
-        encode_itype_load(REG_T0, REG_SP, 0, FUNCT3_LW),
-        // lb t1, 4(sp)
-        encode_itype_load(REG_T1, REG_SP, 4, FUNCT3_LB),
-        // lbu t2, 4(sp)
-        encode_itype_load(REG_T2, REG_SP, 4, FUNCT3_LBU),
-        // add s0, t0, t1
-        encode_rtype(REG_S0, REG_T0, REG_T1, OPCODE_OP, FUNCT7_ADD, FUNCT3_ADD_SUB),
-        // addi s1, s0, 1000
-        encode_itype_op(REG_S1, REG_S0, 1000, OPCODE_OP_IMM, FUNCT3_ADD_SUB),
-    };
-
-    for (int i = 0; i < sizeof(insts) / sizeof(insts[0]); i++) {
-        execute_instruction(&vm, insts[i]);
-    }
-
-    printf("x5  (t0) = %lld (expected 1234)\n", vm.regs[REG_T0]);
-    printf("x6  (t1) = %lld (expected -1)\n", vm.regs[REG_T1]);
-    printf("x7  (t2) = %lld (expected 255)\n", vm.regs[REG_T2]);
-    printf("x8  (s0) = %lld (expected 1233)\n", vm.regs[REG_S0]);
-    printf("x9  (s1) = %lld (expected 2233)\n", vm.regs[REG_S1]);
-}
-
-// int main(void)
-// {
-//     /*
-//      * List of TODOS:
-//      * - 32-bit arithmetic
-//      * - Handle invalid instruction encoding
-//      * - Memory
-//      * - Traps, exceptions, interrupts
-//      * - Some way to explictily halt. Other SYSTEM stuff.
-//      * - Make sure x0 cannot be written to.
-//      * - Raise exception if traget address for a jump is not aligned
-//      * - Nice way to debug state of VM.
-//      * - Single-step execution.
-//      *
-//      * Testing etc:
-//      * - Bunch of regression tests
-//      * - Some kind of API encode instructions.
-//      * - Simple assembler. Useful for testing.
-//      */
-// 
-//     test2();
-// }
+/*
+ * List of TODOS:
+ * - 32-bit arithmetic
+ * - Handle invalid instruction encoding
+ * - Proper memory
+ * - Traps, exceptions, interrupts
+ * - Some way to explictily halt. Other SYSTEM stuff.
+ * - Make sure x0 cannot be written to.
+ * - Raise exception if traget address for a jump is not aligned
+ * - Nice way to debug state of VM.
+ * - Single-step execution.
+ *
+ * Testing etc:
+ * - Bunch of regression tests
+ * - Some kind of API encode instructions.
+ * - Simple assembler. Useful for testing.
+ */
