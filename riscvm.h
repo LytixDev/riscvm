@@ -17,6 +17,8 @@
 #ifndef RISCVM_H
 #define RISCVM_H
 
+#include "base.h"
+
 /* Types */
 typedef enum {
     REG_ZERO = 0, // x0, always zero
@@ -163,8 +165,7 @@ typedef struct {
 void dump_regs(RiscVM *vm, bool ignore_zero);
 void dump_regs_to_buffer(RiscVM *vm, u8 *buf, size_t buf_size, bool ignore_zero);
 bool execute_instruction(RiscVM *vm, u32 inst);
-void execute_until_halt(RiscVM *vm, u32 instructions[1024]);
-
+void execute_until_halt(RiscVM *vm, u32 *instructions);
 
 
 #endif // RISCVM_H

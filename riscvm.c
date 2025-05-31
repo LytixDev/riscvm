@@ -15,7 +15,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include <stdio.h>
-#include "types.h"
+#include "base.h"
 #include "riscvm.h"
 
 
@@ -398,25 +398,8 @@ void dump_regs_to_buffer(RiscVM *vm, u8 *buf, size_t buf_size, bool ignore_zero)
 }
 
 
-void execute_until_halt(RiscVM *vm, u32 instructions[1024])
+void execute_until_halt(RiscVM *vm, u32 *instructions)
 {
     while (!execute_instruction(vm, instructions[vm->pc >> 2]));
 }
 
-/*
- * List of TODOS:
- * - 32-bit arithmetic
- * - Handle invalid instruction encoding
- * - Proper memory
- * - Traps, exceptions, interrupts
- * - Some way to explictily halt. Other SYSTEM stuff.
- * - Make sure x0 cannot be written to.
- * - Raise exception if traget address for a jump is not aligned
- * - Nice way to debug state of VM.
- * - Single-step execution.
- *
- * Testing etc:
- * - Bunch of regression tests
- * - Some kind of API encode instructions.
- * - Simple assembler. Useful for testing.
- */

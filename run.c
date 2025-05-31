@@ -16,66 +16,145 @@
  */
 #include <stdio.h>
 #include <string.h>
-#include "types.h"
+#include <getopt.h>
+#include <sys/stat.h>
+#define BASE_IMPLEMENTATION
+#include "base.h"
+
 #include "assembler.h"
 #include "riscvm.h"
 
-
-bool read_file_to_buffer(u8 *filename, u8 *buffer)
-{
-    FILE *f = fopen(filename, "r");
-    if (f == NULL) {
-        return false;
-    }
-    size_t read = fread(buffer, 1, 4096 - 1, f);
-    buffer[read] = 0;
-    fclose(f);
-    return true;
-}
-
 bool run_test(u8 *source_file, u8 *expected_reg_state_file)
 {
-    u32 inst[1024];
-    assemble_file(source_file, inst);
+    BinaryBuf instructions = assemble_file(source_file);
+    if (instructions.data == NULL) {
+        fprintf(stderr, "FAIL :: could not assemble '%s'\n", source_file);
+        return false;
+    }
 
     RiscVM vm = {0};
-    execute_until_halt(&vm, inst);
-
+    execute_until_halt(&vm, (u32 *)instructions.data);
     u8 reg_state[4096];
     dump_regs_to_buffer(&vm, reg_state, 4096, true);
 
-    u8 expected_reg_state[4096];
-    if (!read_file_to_buffer(expected_reg_state_file, expected_reg_state)) {
-        fprintf(stderr, "Failed to open expected reg file: %s\n", expected_reg_state_file);
+    BinaryBuf expected_reg_state = read_file(expected_reg_state_file);
+    if (expected_reg_state.data == NULL) {
+        fprintf(stderr, "FAIL :: during reading of expected_reg_state_file '%s'\n", expected_reg_state_file);
+        free(instructions.data);
         return false;
     }
 
-    if (strcmp(reg_state, expected_reg_state) == 0) {
+    bool fail = false;
+    if (strcmp(reg_state, expected_reg_state.data) == 0) {
         printf("PASS :: %s\n", source_file);
-        return true;
     } else {
-        printf("FAIL :: %s\nExpected:\n%s\nActual:\n%s\n", source_file, expected_reg_state, reg_state);
-        return false;
+        printf("FAIL :: %s\nExpected:\n%s\nActual:\n%s\n", source_file, expected_reg_state.data, reg_state);
+        fail = true;
     }
+
+    free(instructions.data);
+    free(expected_reg_state.data);
+    return fail;
 }
 
 void run_all_tests(void)
 {
     run_test("tests/simp.s", "tests/simp.regs");
-    run_test("tests/artih.s", "tests/arith.regs");
+    run_test("tests/arith.s", "tests/arith.regs");
 }
 
-int main(void)
+void assemble_and_save(u8 *input_file)
 {
-#if 1
-    u32 inst[1024];
-    s32 inst_count = assemble_file("tests/arith.s", inst);
+    BinaryBuf instructions = assemble_file(input_file);
+    if (instructions.data == NULL) {
+        return;
+    }
+    FILE *out_file = fopen("out.bin", "wb");
+    if (!out_file) {
+        fprintf(stderr, "Could not open file 'out.bin'\n");
+        return;
+    }
+
+    size_t written = fwrite((u32 *)instructions.data, sizeof(u32), instructions.size, out_file);
+    if (written != instructions.size) {
+        fprintf(stderr, "Failed to write all instructions.\n");
+        fclose(out_file);
+        return;
+    }
+
+    fclose(out_file);
+}
+
+void run_binary(u8 *input_file)
+{
+    BinaryBuf buf = read_file(input_file);
+    if (buf.data == NULL) {
+        return;
+    }
 
     RiscVM vm = {0};
-    execute_until_halt(&vm, inst);
+    execute_until_halt(&vm, (u32 *)buf.data);
     dump_regs(&vm, true);
-#endif
+    free(buf.data);
+}
 
-    // run_all_tests();
+void run_asm(u8 *input_file)
+{
+    RiscVM vm = {0};
+    BinaryBuf instructions = assemble_file(input_file);
+    if (instructions.data == NULL) {
+        fprintf(stderr, "Error occured during assembly. Quitting ...\n");
+        return;
+    }
+    execute_until_halt(&vm, (u32 *)instructions.data);
+    dump_regs(&vm, true);
+    free(instructions.data);
+}
 
+int main(int argc, char *argv[])
+{
+    // TODO: debug levels
+
+    int opt;
+    char *mode = NULL;
+    char *input_file = NULL;
+    while ((opt = getopt(argc, argv, "m:f:")) != -1) {
+        switch (opt) {
+        case 'm': // mode: test, assemble, runasm, runbin
+            mode = optarg;
+            break;
+        case 'f': // input file
+            input_file = optarg;
+            break;
+        default:
+            fprintf(stderr, "Usage: %s -m [test|assemble|runasm|runbin] [-f filename]\n", argv[0]);
+            return 1;
+        }
+    }
+
+    if (mode == NULL) {
+        fprintf(stderr, "Usage: %s -m [test|assemble|runasm|runbin] [-f filename]\n", argv[0]);
+        return 1;
+    }
+
+    if (strcmp(mode, "test") == 0) {
+        run_all_tests();
+        return 0;
+    } 
+
+    /* All the other modes need a valid input file */
+    if (input_file == NULL) {
+        fprintf(stderr, "No input file given.\n");
+        fprintf(stderr, "Usage: %s -m [test|assemble|runasm|runbin] [-f filename]\n", argv[0]);
+        return 1;
+    }
+    if (strcmp(mode, "assemble") == 0) {
+        assemble_and_save((u8 *)input_file);
+    } else if (strcmp(mode, "runasm") == 0) {
+        run_asm((u8 *)input_file);
+    } else if (strcmp(mode, "runbin") == 0) {
+        run_binary((u8 *)input_file);
+    }
+
+    return 0;
 }

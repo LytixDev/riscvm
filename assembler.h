@@ -17,10 +17,16 @@
 #ifndef RISCVM_ASSEMBLER_H
 #define RISCVM_ASSEMBLER_H
 
-#include "types.h"
+#include "base.h"
+
+typedef struct {
+    s64 size; // Number of bytes
+    u8 *data; // Heap allocated. NULLABLE (no data).
+} BinaryBuf;
 
 
-s32 assemble_file(u8 *input_file, u32 instructions[1024]);
+BinaryBuf read_file(u8 *filename);
+BinaryBuf assemble_file(u8 *input_file);
 
 
 #endif /* RISCVM_ASSEMBLER_H */

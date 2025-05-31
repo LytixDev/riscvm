@@ -18,10 +18,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#define NICC_IMPLEMENTATION
-#include "nicc.h"
-#include "types.h"
+#include "base.h"
 #include "riscvm.h"
+#include "assembler.h"
 
 
 u8 *regs[] = {
@@ -418,60 +417,72 @@ static u32 assemble_next_inst(Assembler *ass)
     return encoded_inst;
 }
 
-s32 assemble_file(u8 *input_file, u32 instructions[1024])
+BinaryBuf read_file(u8 *filename)
 {
-    /* Read input file in its entirety */
-    struct stat st;
-    if (stat(input_file, &st) != 0) {
-        printf("Could not find file '%s'", input_file);
-        return -1;
-    }
-    size_t input_size = st.st_size;
-    char *input = malloc(sizeof(char) * (input_size + 1));
-    input[input_size] = 0;
-    FILE *fp = fopen(input_file, "r");
+    BinaryBuf buf = { .data = NULL };
+    FILE *fp = fopen(filename, "r");
     if (fp == NULL) {
-        printf("Could not open file '%s'", input_file);
-        free(input);
+        LOG_FATAL("Could not open file '%s'", filename);
         fclose(fp);
-        return -1;
+        return buf;
     }
-    if (fread(input, sizeof(char), st.st_size, fp) != input_size) {
-        printf("Could not read file '%s'", input_file);
-        free(input);
+    struct stat st;
+    if (stat(filename, &st) != 0) {
+        LOG_FATAL("Could not find file '%s'", filename);
+        return buf;
+    }
+
+    buf.size = st.st_size;
+    buf.data = malloc(sizeof(u8) * (buf.size + 1));
+    buf.data[buf.size] = 0;
+    if (fread(buf.data, sizeof(u8), st.st_size, fp) != buf.size) {
+        LOG_FATAL("Could not read file '%s'", filename);
+        free(buf.data);
         fclose(fp);
-        return -1;
+        return buf;
     }
     fclose(fp);
+    return buf;
+}
+
+BinaryBuf assemble_file(u8 *input_file)
+{
+    /* Read input file in its entirety */
+    BinaryBuf input_data = read_file(input_file);
+    if (input_data.data == NULL) {
+        return (BinaryBuf){ .data = NULL };
+    }
 
     Assembler ass = {0};
-    ass.data = input;
-    ass.data_len = input_size;
+    ass.data = input_data.data;
+    ass.data_len = input_data.size;
     hashmap_init(&ass.labels);
 
     /* First pass. Label resolution. */
     resolve_labels(&ass);
 
     /* Second pass. Code gen. */
+    size_t instructions_allocated = 128;
+    u32 *instructions = malloc(sizeof(u32) * instructions_allocated);
     while (!ass.had_error && ass.pos < ass.data_len) {
         u32 inst = assemble_next_inst(&ass);
+        if (ass.inst_count > instructions_allocated) {
+            instructions_allocated *= 2;
+            instructions = realloc(instructions, sizeof(u32) * instructions_allocated);
+        }
         instructions[ass.inst_count] = inst;
         ass.inst_count++;
         ass.instruction_stream_byte_offset += 4;
     }
 
     /* Cleanup */
-    free(input);
+    free(input_data.data);
     hashmap_free(&ass.labels);
 
     if (ass.had_error) {
-        return -1;
+        return (BinaryBuf){ .data = NULL };
     }
-    return ass.inst_count;
+
+    return (BinaryBuf){ .size = ass.inst_count, .data = (u8 *)instructions };
 }
 
-// TODO: 
-// - The assembler should also have a decode of an encoded instruction. Useful for testing.
-// - Tab support
-// - Register indirect addressing mode `lw x1, 8(x2)`
-// - more rubost testing
