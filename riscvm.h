@@ -154,7 +154,7 @@ typedef enum {
 #define MEM_SIZE (1 << 20) // 1 MiB
 
 typedef struct {
-    s64 regs[32];
+    u64 regs[32];
     u64 pc;
     u64 steps;
     u8 memory[MEM_SIZE];

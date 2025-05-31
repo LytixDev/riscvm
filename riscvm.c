@@ -19,15 +19,19 @@
 #include "riscvm.h"
 
 
-/* Converts a signed number from a smaller bit-width to a larger one without changing its value */
-// TODO: Figure out if this is actually correct.
-static s32 sign_extend(s32 imm, s32 bit_width) 
+static s32 sign_extend_32(s32 imm, s32 bit_width) 
 {
     int shift = 32 - bit_width;
     return (imm << shift) >> shift;
 }
 
-// TODO: Ensure correct alignment, also, bounds check
+static s64 sign_extend_64(s64 imm, s32 bit_width) 
+{
+    int shift = 64 - bit_width;
+    return (imm << shift) >> shift;
+}
+
+// TODO: Ensure correct alignment, bounds check, and more
 static u8 mem_load8(RiscVM *vm, u64 addr) 
 {
     return vm->memory[addr];
@@ -68,10 +72,19 @@ static void mem_store64(RiscVM *vm, u64 addr, u64 val)
     *(u64 *)&vm->memory[addr] = val;
 }
 
+static inline void reg_write(RiscVM *vm, u32 rd, u64 value)
+{
+    /* x0 always hardwired to be zero */
+    if (rd == 0) {
+        return;
+    }
+    vm->regs[rd] = value;
+}
+
 bool execute_instruction(RiscVM *vm, u32 inst)
 {
     vm->steps += 1;
-    u8 opcode = inst & 0x7F;
+    u8 opcode = inst & 0b1111111; // First 7 bits are the opcode
 
     switch (opcode) {
     default:
@@ -91,47 +104,47 @@ bool execute_instruction(RiscVM *vm, u32 inst)
      */
     case OPCODE_OP: {
         vm->pc += 4;
-        u8 rd = (inst >> 7) & 0x1F;
-        u8 funct3 = (inst >> 12) & 0x07;
-        u8 rs1 = (inst >> 15) & 0x1F;
-        u8 rs2 = (inst >> 20) & 0x1F;
-        u8 funct7 = (inst >> 25) & 0x7F;
+        u8 rd = (inst >> 7) & 0b11111; // 5 bits for rd
+        u8 funct3 = (inst >> 12) & 0b111;
+        u8 rs1 = (inst >> 15) & 0b11111; // 5 bits for rs1
+        u8 rs2 = (inst >> 20) & 0b11111; // 5 bits for rs2
+        u8 funct7 = (inst >> 25) & 0b1111111;
 
         switch (funct3) {
         case FUNCT3_ADD_SUB:
             if (funct7 == FUNCT7_ADD) {
-                vm->regs[rd] = vm->regs[rs1] + vm->regs[rs2];
+                reg_write(vm, rd, vm->regs[rs1] + vm->regs[rs2]);
             } else if (funct7 == FUNCT7_SUB) {
-                vm->regs[rd] = vm->regs[rs1] - vm->regs[rs2];
+                reg_write(vm, rd, vm->regs[rs1] - vm->regs[rs2]);
             }
             break;
         case FUNCT3_SLL:
             // TODO: redundant to check for funct7? Ommited for the rest of the cases
             if (funct7 == FUNCT7_SLL) {
-                vm->regs[rd] = vm->regs[rs1] << (vm->regs[rs2] & 0x3F);
+                reg_write(vm, rd, vm->regs[rs1] << (vm->regs[rs2] & 63));
             }
             break;
         case FUNCT3_SLT:
-            vm->regs[rd] = (s64)vm->regs[rs1] < (s64)vm->regs[rs2];
+            reg_write(vm, rd, (s64)vm->regs[rs1] < (s64)vm->regs[rs2]);
             break;
         case FUNCT3_SLTU:
-            vm->regs[rd] = vm->regs[rs1] < vm->regs[rs2];
+            reg_write(vm, rd, vm->regs[rs1] < vm->regs[rs2]);
             break;
         case FUNCT3_XOR:
-            vm->regs[rd] = vm->regs[rs1] ^ vm->regs[rs2];
+            reg_write(vm, rd, vm->regs[rs1] ^ vm->regs[rs2]);
             break;
         case FUNCT3_SRL_SRA:
             if (funct7 == FUNCT7_SRL) {
-                vm->regs[rd] = vm->regs[rs1] >> (vm->regs[rs2] & 0x3F);
+                reg_write(vm, rd, vm->regs[rs1] >> (vm->regs[rs2] & 63));
             } else if (funct7 == FUNCT7_SRA) {
-                vm->regs[rd] = (s64)vm->regs[rs1] >> (vm->regs[rs2] & 0x3F);
+                reg_write(vm, rd, (s64)vm->regs[rs1] >> (vm->regs[rs2] & 63));
             }
             break;
         case FUNCT3_OR:
-            vm->regs[rd] = vm->regs[rs1] | vm->regs[rs2];
+            reg_write(vm, rd, vm->regs[rs1] | vm->regs[rs2]);
             break;
         case FUNCT3_AND:
-            vm->regs[rd] = vm->regs[rs1] & vm->regs[rs2];
+            reg_write(vm, rd, vm->regs[rs1] & vm->regs[rs2]);
             break;
         default:
             // TODO: invalid instruction
@@ -148,39 +161,40 @@ bool execute_instruction(RiscVM *vm, u32 inst)
      */
     case OPCODE_OP_IMM: {
         vm->pc += 4;
-        u8 rd = (inst >> 7) & 0x1F;
-        u8 funct3 = (inst >> 12) & 0x07;
-        u8 rs1 = (inst >> 15) & 0x1F;
-        s32 imm = ((s32)inst) >> 20; // TODO: Use sign extend function
+        u8 rd = (inst >> 7) & 0b11111; // 5 bits for rd
+        u8 funct3 = (inst >> 12) & 0b111;
+        u8 rs1 = (inst >> 15) & 0b11111; // 5 bits for rs1
+        s32 imm = ((s32)inst) >> 20;  // Arithmetic shift already sign-extends correctly
 
         switch (funct3) {
         case FUNCT3_ADD_SUB:
-            vm->regs[rd] = vm->regs[rs1] + imm;
+            reg_write(vm, rd, vm->regs[rs1] + imm);
             break;
         case FUNCT3_SLT:
-            vm->regs[rd] = (s64)vm->regs[rs1] < (s64)imm;
+            reg_write(vm, rd, (s64)vm->regs[rs1] < (s64)imm);
             break;
         case FUNCT3_SLTU:
-            vm->regs[rd] = vm->regs[rs1] < (u64)imm;
+            reg_write(vm, rd, vm->regs[rs1] < (s64)imm);
             break;
         case FUNCT3_XOR:
-            vm->regs[rd] = vm->regs[rs1] ^ imm;
+            reg_write(vm, rd, vm->regs[rs1] ^ imm);
             break;
         case FUNCT3_OR:
-            vm->regs[rd] = vm->regs[rs1] | imm;
+            reg_write(vm, rd, vm->regs[rs1] | imm);
             break;
         case FUNCT3_AND:
-            vm->regs[rd] = vm->regs[rs1] & imm;
+            reg_write(vm, rd, vm->regs[rs1] & imm);
             break;
         case FUNCT3_SLL:
-            vm->regs[rd] = vm->regs[rs1] << (imm & 0x3F);
+            reg_write(vm, rd, vm->regs[rs1] << (imm & 0x63));
             break;
         case FUNCT3_SRL_SRA: {
+            s32 shamt_max_6_bits = imm & 0x3F;
             u8 funct7 = (inst >> 25) & 0x7F;
             if (funct7 == FUNCT7_SRL) {
-                vm->regs[rd] = vm->regs[rs1] >> (imm & 0x3F);
+                reg_write(vm, rd, vm->regs[rs1] >> shamt_max_6_bits); // Logical right shift
             } else if (funct7 == FUNCT7_SRA) {
-                vm->regs[rd] = (s64)vm->regs[rs1] >> (imm & 0x3F);
+                reg_write(vm, rd, (s64)vm->regs[rs1] >> shamt_max_6_bits);  // Arithmetic right shift
             }
             break;
         }
@@ -197,34 +211,34 @@ bool execute_instruction(RiscVM *vm, u32 inst)
      */
     case OPCODE_LOAD: {
         vm->pc += 4;
-        u8 rd = (inst >> 7) & 0x1F;
-        u8 funct3 = (inst >> 12) & 0x07;
-        u8 rs1 = (inst >> 15) & 0x1F;
-        s32 imm = ((s32)inst) >> 20;
+        u8 rd = (inst >> 7) & 0b11111; // 5 bits for rd
+        u8 funct3 = (inst >> 12) & 0b111;
+        u8 rs1 = (inst >> 15) & 0b11111; // 5 bits for rs1
+        s32 imm = ((s32)inst) >> 20;  // Arithmetic shift already sign-extends correctly
 
         u64 addr = vm->regs[rs1] + imm;
 
         switch (funct3) {
         case FUNCT3_LB:
-            vm->regs[rd] = (s8)mem_load8(vm, addr);
+            reg_write(vm, rd, (s8)mem_load8(vm, addr));
             break;
         case FUNCT3_LH:
-            vm->regs[rd] = (s16)mem_load16(vm, addr);
+            reg_write(vm, rd, (s16)mem_load16(vm, addr));
             break;
         case FUNCT3_LW:
-            vm->regs[rd] = (s32)mem_load32(vm, addr);
+            reg_write(vm, rd, (s32)mem_load32(vm, addr));
             break;
         case FUNCT3_LD:
-            vm->regs[rd] = (s64)mem_load64(vm, addr);
+            reg_write(vm, rd, (s64)mem_load64(vm, addr));
             break;
         case FUNCT3_LBU:
-            vm->regs[rd] = mem_load8(vm, addr);
+            reg_write(vm, rd, mem_load8(vm, addr));
             break;
         case FUNCT3_LHU:
-            vm->regs[rd] = mem_load16(vm, addr);
+            reg_write(vm, rd, mem_load16(vm, addr));
             break;
         case FUNCT3_LWU:
-            vm->regs[rd] = mem_load32(vm, addr);
+            reg_write(vm, rd, mem_load32(vm, addr));
             break;
         default:
             // TODO: invalid load funct3
@@ -241,13 +255,13 @@ bool execute_instruction(RiscVM *vm, u32 inst)
     */
     case OPCODE_STORE: {
         vm->pc += 4;
-        u8 imm4_0 = (inst >> 7) & 0x1F;
-        u8 funct3 = (inst >> 12) & 0x07;
-        u8 rs1 = (inst >> 15) & 0x1F;
-        u8 rs2 = (inst >> 20) & 0x1F;
-        u8 imm11_5 = (inst >> 25) & 0x7F;
-
-        s32 imm = sign_extend((imm11_5 << 5) | imm4_0, 12);
+        u8 imm4_0 = (inst >> 7) & 0b11111; // first 5 immediate bits
+        u8 funct3 = (inst >> 12) & 0b111;
+        u8 rs1 = (inst >> 15) & 0b11111; // 5 bits for rs1
+        u8 rs2 = (inst >> 20) & 0b11111; // 5 bits for rs2
+        u8 imm11_5 = (inst >> 25) & 0b1111111; // final 7 immediate bits
+        // Splice together immediate and sign extend
+        s32 imm = sign_extend_32((imm11_5 << 5) | imm4_0, 12);
         u64 addr = vm->regs[rs1] + imm;
         u64 value = vm->regs[rs2];
 
@@ -283,17 +297,17 @@ bool execute_instruction(RiscVM *vm, u32 inst)
      *  - The LSB of the immediate is always 0.
      */
     case OPCODE_BRANCH: {
-        u8 funct3 = (inst >> 12) & 0x7;
-        u8 rs1 = (inst >> 15) & 0x1F;
-        u8 rs2 = (inst >> 20) & 0x1F;
+        u8 funct3 = (inst >> 12) & 0b111;
+        u8 rs1 = (inst >> 15) & 0b11111;
+        u8 rs2 = (inst >> 20) & 0b11111;
 
-        u32 imm11 = (inst >> 7) & 0x1;
-        u32 imm4_1 = (inst >> 8) & 0xF;
-        u32 imm10_5 = (inst >> 25) & 0x3F;
-        u32 imm12 = (inst >> 31) & 0x1;
-
+        /* The immediate is funnily encoded */
+        u32 imm11 = (inst >> 7) & 0x1; // First bit
+        u32 imm4_1 = (inst >> 8) & 0xF; // Next five
+        u32 imm10_5 = (inst >> 25) & 0x3F; // Next 6
+        u32 imm12 = (inst >> 31) & 0x1; // Final
         s32 imm = (imm12 << 12) | (imm11 << 11) | (imm10_5 << 5) | (imm4_1 << 1);
-        imm = sign_extend(imm, 13);
+        imm = sign_extend_32(imm, 13);
 
         bool do_branch = false;
         switch (funct3) {
@@ -329,38 +343,40 @@ bool execute_instruction(RiscVM *vm, u32 inst)
 
     /* U-type  */
     case OPCODE_LUI: {
-        u8 rd = (inst >> 7) & 0x1F;
-        s32 imm = inst & 0xFFFFF000;
-        vm->regs[rd] = imm;
+        u8 rd = (inst >> 7) & 0b11111;
+        s32 imm = inst & 0xFFFFF000; // Everything but the first 3 bytes
+        reg_write(vm, rd, imm);
         vm->pc += 4;
     }; break;
     case OPCODE_AUIPC: {
-        u8 rd = (inst >> 7) & 0x1F;
-        s32 imm = inst & 0xFFFFF000;
-        vm->regs[rd] = vm->pc + imm;
+        u8 rd = (inst >> 7) & 0b11111;
+        s32 imm = inst & 0xFFFFF000; // Everything but the first 3 bytes
+        reg_write(vm, rd, vm->pc + imm);
         vm->pc += 4;
     }; break;
 
     case OPCODE_JAL: {
-        u8 rd = (inst >> 7) & 0x1F;
-        s32 imm =
-            ((inst >> 21) & 0x3FF) << 1 |  // imm[10:1]
-            ((inst >> 20) & 0x1) << 11 |   // imm[11]
-            ((inst >> 12) & 0xFF) << 12 |  // imm[19:12]
-            ((inst >> 31) & 0x1) << 20;    // imm[20]
-
-        imm = sign_extend(imm, 21);
-        vm->regs[rd] = vm->pc + 4;
+        u8 rd = (inst >> 7) & 0b11111; // 5 bits for rd
+        u32 imm20 = (inst >> 31) & 0x1;     // imm[20] from bit 31
+        u32 imm10_1 = (inst >> 21) & 0x3FF; // imm[10:1] from bits 30:21  
+        u32 imm11 = (inst >> 20) & 0x1;     // imm[11] from bit 20
+        u32 imm19_12 = (inst >> 12) & 0xFF; // imm[19:12] from bits 19:12
+        /* Reconstruct the 21-bit immediate (bit 0 is always 0 for alignment) */
+        s32 imm = (imm20 << 20) | (imm19_12 << 12) | (imm11 << 11) | (imm10_1 << 1);
+        imm = sign_extend_32(imm, 21);
+        
+        reg_write(vm, rd, vm->pc + 4);
         vm->pc += imm;
     }; break;
     case OPCODE_JALR: {
-        u8 rd = (inst >> 7) & 0x1F;
-        u8 funct3 = (inst >> 12) & 0x07;
-        u8 rs1 = (inst >> 15) & 0x1F;
-        s32 imm = ((s32)inst) >> 20; // full sign-extend
+        u8 rd = (inst >> 7) & 0b11111;
+        u8 funct3 = (inst >> 12) & 0b111;
+        u8 rs1 = (inst >> 15) & 0b11111;
+        s32 imm = ((s32)inst) >> 20; // Arithmetic shift already sign extends
 
+        /* Clears the least significant bit (for alignment) */
         u64 target = (vm->regs[rs1] + imm) & ~1ULL;
-        vm->regs[rd] = vm->pc + 4;
+        reg_write(vm, rd, vm->pc + 4);
         vm->pc = target;
     }; break;
 

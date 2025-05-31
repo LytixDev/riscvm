@@ -61,6 +61,8 @@ void run_all_tests(void)
 {
     run_test("tests/simp.s", "tests/simp.regs");
     run_test("tests/arith.s", "tests/arith.regs");
+    run_test("tests/addi.s", "tests/addi.regs");
+    run_test("tests/arith_imm.s", "tests/arith_imm.regs");
 }
 
 void assemble_and_save(u8 *input_file)

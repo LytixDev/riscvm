@@ -23,23 +23,23 @@
 #include "assembler.h"
 
 
-u8 *regs[] = {
+char *regs[] = {
     "x0",  "x1",  "x2",  "x3",  "x4",  "x5",  "x6",  "x7",
     "x8",  "x9",  "x10", "x11", "x12", "x13", "x14", "x15",
     "x16", "x17", "x18", "x19", "x20", "x21", "x22", "x23",
     "x24", "x25", "x26", "x27", "x28", "x29", "x30", "x31"
 };
 
-u8 *reg_names[] = {
+char *reg_names[] = {
     "zero", "ra",  "sp",  "gp",  "tp",  "t0",  "t1",  "t2",
     "s0",   "s1",  "a0",  "a1",  "a2",  "a3",  "a4",  "a5",
     "a6",   "a7",  "s2",  "s3",  "s4",  "s5",  "s6",  "s7",
     "s8",   "s9",  "s10", "s11", "t3",  "t4",  "t5",  "t6"
 };
 
-const char *mnemonics[] = {
+char *mnemonics[] = {
     "lui", "auipc", "jal", "jalr",
-    "beq", "bne", "bge", "bltu", "bgeu",
+    "beq", "bne", "blt", "bge", "bltu", "bgeu",
     "lb", "lh", "lw", "lbu", "lhu", "lwu", "ld",
     "sb", "sh", "sw", "sd",
     "addi", "slti", "sltiu", "xori", "ori", "andi", "slli", "srli", "srai",
@@ -52,7 +52,7 @@ const char *mnemonics[] = {
 typedef enum {
     MNEMONIC_LUI, MNEMONIC_AUIPC, MNEMONIC_JAL, MNEMONIC_JALR,
 
-    MNEMONIC_BEQ, MNEMONIC_BNE, MNEMONIC_BGE, MNEMONIC_BLTU, MNEMONIC_BGEU,
+    MNEMONIC_BEQ, MNEMONIC_BNE, MNEMONIC_BLT, MNEMONIC_BGE, MNEMONIC_BLTU, MNEMONIC_BGEU,
 
     MNEMONIC_LB, MNEMONIC_LH, MNEMONIC_LW, MNEMONIC_LBU, MNEMONIC_LHU, MNEMONIC_LWU, MNEMONIC_LD,
 
@@ -74,10 +74,9 @@ typedef enum {
 } Mnemonic;
 
 typedef struct {
-    // Lexing stuff
     u8 *data;
     u32 data_len;
-    u32 pos;
+    u32 pos; // Used during parsing
     bool had_error;
 
     s32 inst_count;
@@ -113,7 +112,9 @@ static void skip_until_newline(Assembler *ass)
     while (ass->pos < ass->data_len && ass->data[ass->pos] != '\n') {
         ass->pos++;
     }
-    if (ass->pos < ass->data_len) ass->pos++; // Skips the newline itself
+    if (ass->pos < ass->data_len) {
+        ass->pos++; // Skips the newline itself
+    }
 }
 
 
@@ -152,67 +153,77 @@ static s32 match_reg(u8 *name)
     }
     return -1;
 }
-
+/*
+ * funct7[31:25] | rs2[24:20] | rs1[19:15] | funct3[14:12] | rd[11:7] | opcode[6:0]
+ */
 static u32 encode_rtype(u8 rd, u8 rs1, u8 rs2, u8 opcode, u8 funct7, u8 funct3)
 {
-    return ((funct7 & 0x7F) << 25) |
-           ((rs2 & 0x1F) << 20) |
-           ((rs1 & 0x1F) << 15) |
-           ((funct3 & 0x07) << 12) |
-           ((rd & 0x1F) << 7) |
-           (opcode & 0x7F);
+    return (funct7 << 25) |
+           (rs2 << 20) |
+           (rs1 << 15) |
+           (funct3 << 12) |
+           (rd << 7) |
+           opcode;
 }
 
+/* 
+ * imm[31:20] | rs1[19:15] | funct3[14:12] | rd[11:7] | opcode[6:0]
+ */
 static u32 encode_itype_op(u8 rd, u8 rs1, s32 imm, u8 opcode, u8 funct3)
 {
     return ((imm & 0xFFF) << 20) |
-           ((rs1 & 0x1F) << 15) |
-           ((funct3 & 0x07) << 12) |
-           ((rd & 0x1F) << 7) |
-           (opcode & 0x7F);
+           (rs1 << 15) |
+           (funct3 << 12) |
+           (rd << 7) |
+           opcode;
 }
 
 static u32 encode_itype_load(u8 rd, u8 rs1, s32 imm, u8 funct3)
 {
     return ((imm & 0xFFF) << 20) |
-           ((rs1 & 0x1F) << 15) |
-           ((funct3 & 0x7) << 12) |
-           ((rd & 0x1F) << 7) |
+           (rs1 << 15) |
+           (funct3 << 12) |
+           (rd << 7) |
            OPCODE_LOAD;
 }
 
+/*
+ * imm[31:25] | rs2[24:20] | rs1[19:15] | funct3[14:12] | imm[11:7] | opcode[6:0]
+ */
 static u32 encode_stype(u8 rs1, u8 rs2, s32 imm, u8 opcode, u8 funct3)
 {
     u32 imm11_5 = (imm >> 5) & 0x7F;
     u32 imm4_0  = imm & 0x1F;
     return (imm11_5 << 25) |
-           ((rs2 & 0x1F) << 20) |
-           ((rs1 & 0x1F) << 15) |
-           ((funct3 & 0x7) << 12) |
-           ((imm4_0 & 0x1F) << 7) |
-           (opcode & 0x7F);
+           (rs2 << 20) |
+           (rs1 << 15) |
+           (funct3 << 12) |
+           (imm4_0 << 7) |
+           opcode;
 }
 
+/* 
+ * imm[12|10:5] | rs2[24:20] | rs1[19:15] | funct3[14:12] | imm[4:1|11] | opcode[6:0] 
+ * Note: 13-bit immediate is scrambled across multiple fields, bit 0 is always 0 (2-byte aligned)
+ */
 static u32 encode_btype(u8 rs1, u8 rs2, s32 imm, u8 opcode, u8 funct3)
 {
-    /* Immediate is 13-bit signed, but bit 0 is always 0 (2-byte aligned) */
-    u32 imm_12   = (imm >> 12) & 0x1;    // bit 12
-    u32 imm_11   = (imm >> 11) & 0x1;    // bit 11  
-    u32 imm_10_5 = (imm >> 5) & 0x3F;    // bits 10:5
-    u32 imm_4_1  = (imm >> 1) & 0xF;     // bits 4:1
+    /* The immediate is funnily encoded */
+    u32 imm12 = (imm >> 12) & 0x1;
+    u32 imm11 = (imm >> 11) & 0x1;
+    u32 imm10_5 = (imm >> 5) & 0x3F;
+    u32 imm4_1 = (imm >> 1) & 0xF;
     
-    u32 instruction = 0;
-    instruction |= (opcode & 0x7F);           // bits 6:0
-    instruction |= (imm_11 & 0x1) << 7;       // bit 7
-    instruction |= (imm_4_1 & 0xF) << 8;      // bits 11:8
-    instruction |= (funct3 & 0x7) << 12;      // bits 14:12
-    instruction |= (rs1 & 0x1F) << 15;        // bits 19:15
-    instruction |= (rs2 & 0x1F) << 20;        // bits 24:20
-    instruction |= (imm_10_5 & 0x3F) << 25;   // bits 30:25
-    instruction |= (imm_12 & 0x1) << 31;      // bit 31
-    
-    return instruction;
+    return (imm12 << 31) |
+           (imm10_5 << 25) |
+           (rs2 << 20) |
+           (rs1 << 15) |
+           (funct3 << 12) |
+           (imm4_1 << 8) |
+           (imm11 << 7) |
+           opcode;
 }
+
 
 static u32 encode_inst(Assembler *ass, u32 mnemonic_id, s32 rd, s32 rs1, s32 rs2, u32 imm)
 {
@@ -223,6 +234,8 @@ static u32 encode_inst(Assembler *ass, u32 mnemonic_id, s32 rd, s32 rs1, s32 rs2
         return 0;
     case MNEMONIC_HALT:
         return 0;
+
+    /* R-type */
     case MNEMONIC_ADD:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_ADD, FUNCT3_ADD_SUB);
     case MNEMONIC_SUB:
@@ -243,7 +256,15 @@ static u32 encode_inst(Assembler *ass, u32 mnemonic_id, s32 rd, s32 rs1, s32 rs2
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_OR, FUNCT3_OR);
     case MNEMONIC_AND:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_AND, FUNCT3_AND);
+    /* Immediate here becomes the shift amount which has to be clamped to less than 63. */
+    case MNEMONIC_SLLI:
+        return encode_rtype(rd, rs1, imm & 63, OPCODE_OP_IMM, FUNCT7_SLL, FUNCT3_SLL);
+    case MNEMONIC_SRLI:
+        return encode_rtype(rd, rs1, imm & 63, OPCODE_OP_IMM, FUNCT7_SRL, FUNCT3_SRL_SRA);
+    case MNEMONIC_SRAI:
+        return encode_rtype(rd, rs1, imm & 63, OPCODE_OP_IMM, FUNCT7_SRA, FUNCT3_SRL_SRA);
 
+    /* I-type */
     case MNEMONIC_ADDI:
         return encode_itype_op(rd, rs1, imm, OPCODE_OP_IMM, FUNCT3_ADD_SUB);
     case MNEMONIC_SLTI:
@@ -256,15 +277,45 @@ static u32 encode_inst(Assembler *ass, u32 mnemonic_id, s32 rd, s32 rs1, s32 rs2
         return encode_itype_op(rd, rs1, imm, OPCODE_OP_IMM, FUNCT3_OR);
     case MNEMONIC_ANDI:
         return encode_itype_op(rd, rs1, imm, OPCODE_OP_IMM, FUNCT3_AND);
-    case MNEMONIC_SLLI:
-        return encode_rtype(rd, rs1, imm & 0x1F, OPCODE_OP_IMM, FUNCT7_SLL, FUNCT3_SLL);
-    case MNEMONIC_SRLI:
-        return encode_rtype(rd, rs1, imm & 0x1F, OPCODE_OP_IMM, FUNCT7_SRL, FUNCT3_SRL_SRA);
-    case MNEMONIC_SRAI:
-        return encode_rtype(rd, rs1, imm & 0x1F, OPCODE_OP_IMM, FUNCT7_SRA, FUNCT3_SRL_SRA);
+    /* I-type load */
+    case MNEMONIC_LB:
+        return encode_itype_load(rd, rs1, imm, FUNCT3_LB);
+    case MNEMONIC_LH:
+        return encode_itype_load(rd, rs1, imm, FUNCT3_LH);
+    case MNEMONIC_LW:
+        return encode_itype_load(rd, rs1, imm, FUNCT3_LW);
+    case MNEMONIC_LD:
+        return encode_itype_load(rd, rs1, imm, FUNCT3_LD);
+    case MNEMONIC_LBU:
+        return encode_itype_load(rd, rs1, imm, FUNCT3_LBU);
+    case MNEMONIC_LHU:
+        return encode_itype_load(rd, rs1, imm, FUNCT3_LHU);
+    case MNEMONIC_LWU:
+        return encode_itype_load(rd, rs1, imm, FUNCT3_LWU);
 
+    /* S-type */
+    case MNEMONIC_SB:
+        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SB);
+    case MNEMONIC_SH:
+        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SH);
+    case MNEMONIC_SW:
+        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SW);
+    case MNEMONIC_SD:
+        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SD);
+
+    /* B-type */
+    case MNEMONIC_BEQ:
+        return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BEQ);
     case MNEMONIC_BNE:
         return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BNE);
+    case MNEMONIC_BLT:
+        return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BLT);
+    case MNEMONIC_BGE:
+        return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BGE);
+    case MNEMONIC_BLTU:
+        return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BLTU);
+    case MNEMONIC_BGEU:
+        return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BGEU);
     }
 }
 
@@ -422,13 +473,13 @@ BinaryBuf read_file(u8 *filename)
     BinaryBuf buf = { .data = NULL };
     FILE *fp = fopen(filename, "r");
     if (fp == NULL) {
-        LOG_FATAL("Could not open file '%s'", filename);
-        fclose(fp);
+        fprintf(stderr, "Could not open file '%s'\n", filename);
         return buf;
     }
     struct stat st;
     if (stat(filename, &st) != 0) {
-        LOG_FATAL("Could not find file '%s'", filename);
+        fprintf(stderr, "Could not find file '%s'\n", filename);
+        fclose(fp);
         return buf;
     }
 
@@ -484,5 +535,7 @@ BinaryBuf assemble_file(u8 *input_file)
     }
 
     return (BinaryBuf){ .size = ass.inst_count, .data = (u8 *)instructions };
+
+    // TODO: Check if immediate is too large. Give warning before truncation.
 }
 

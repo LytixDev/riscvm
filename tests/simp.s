@@ -1,4 +1,3 @@
-# x5 = 1, if x5 == 1 then x5 == 9, x5 += 1
 main:
     addi x5, zero, 1
     addi x6, zero, 1

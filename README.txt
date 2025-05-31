@@ -16,3 +16,6 @@ May need some custom extensions to make it easier/more ergonomic to both support
 
 Spec:
 - https://www2.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-118.pdf
+
+Acknowledgements:
+Some of the test files are taken from https://github.com/PeterAaser/RISCV-FiveStage which is licensed under the Apache License 2.0.
