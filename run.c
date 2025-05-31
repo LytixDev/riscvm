@@ -109,6 +109,7 @@ void run_asm(u8 *input_file)
         return;
     }
     execute_until_halt(&vm, (u32 *)instructions.data);
+    printf("--- Finished in %d steps ---\n", vm.steps);
     dump_regs(&vm, true);
     free(instructions.data);
 }

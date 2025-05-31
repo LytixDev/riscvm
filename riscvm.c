@@ -416,6 +416,10 @@ void dump_regs_to_buffer(RiscVM *vm, u8 *buf, size_t buf_size, bool ignore_zero)
 
 void execute_until_halt(RiscVM *vm, u32 *instructions)
 {
-    while (!execute_instruction(vm, instructions[vm->pc >> 2]));
+    bool halt = false;
+    while (!halt) {
+        halt = execute_instruction(vm, instructions[vm->pc >> 2]);
+    }
+    // while (!execute_instruction(vm, instructions[vm->pc >> 2]));
 }
 
