@@ -17,7 +17,7 @@ main:
  addi s0,sp,32
  addi a1,zero,10
  addi a0,zero,5
- call add
+ call _add
  sw a0,-28(s0)
  addi a1, zero, 0
  addi a4, zero, 0
@@ -25,8 +25,7 @@ main:
  addi x1, zero, 0
  addi s0, zero, 0
  halt
- halt
-add:
+_add:
  addi sp,sp,-32
  sw ra,28(sp)
  sw s0,24(sp)

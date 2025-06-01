@@ -117,13 +117,14 @@ static void skip_spaces(Assembler *ass)
     }
 }
 
-static void skip_until_newline(Assembler *ass)
+static void skip_until_next_line(Assembler *ass)
 {
-    while (ass->pos < ass->data_len && ass->data[ass->pos] != '\n') {
-        ass->pos++;
-    }
-    if (ass->pos < ass->data_len) {
-        ass->pos++; // Skips the newline itself
+    while (ass->pos < ass->data_len && next_u8(ass) != '\n');
+    skip_spaces(ass);
+    u8 c = next_u8(ass);
+    ass->pos--;
+    if (c == '\n') {
+        skip_until_next_line(ass);
     }
 }
 
@@ -443,7 +444,7 @@ static void resolve_labels(Assembler *ass)
         skip_spaces(ass);
         c = next_u8(ass);
         if (c == '#') {
-            skip_until_newline(ass);
+            skip_until_next_line(ass);
             continue;
         }
 
@@ -456,6 +457,7 @@ static void resolve_labels(Assembler *ass)
                 return;
             }
         } while ((c = next_u8(ass)) != ' ' && c != '\n');
+        ass->pos--;
         label_name[i] = 0;
 
         /* Empty label */
@@ -472,7 +474,7 @@ static void resolve_labels(Assembler *ass)
             } else {
                 ass->inst_byte_offset += 4;
             }
-            skip_until_newline(ass);
+            skip_until_next_line(ass);
             continue;
         }
         /* Execution enters here on encountering a label */
@@ -486,7 +488,7 @@ static void resolve_labels(Assembler *ass)
         hashmap_sput(&ass->labels, label_name, 
                      (u32 *)(size_t)(ass->inst_byte_offset + 1), sizeof(u32 *), false);
         if (c != '\n') {
-            skip_until_newline(ass);
+            skip_until_next_line(ass);
         }
     }
 
@@ -513,7 +515,7 @@ static void assemble_next_inst(Assembler *ass)
 
     /* If comment, skip entire line */
     if (c == '#') {
-        skip_until_newline(ass);
+        skip_until_next_line(ass);
         return assemble_next_inst(ass);
     }
 
@@ -540,7 +542,7 @@ static void assemble_next_inst(Assembler *ass)
         }
         /* Happy path */
         if (c != '\n') {
-            skip_until_newline(ass);
+            skip_until_next_line(ass);
         }
         return;
     }
@@ -561,7 +563,7 @@ static void assemble_next_inst(Assembler *ass)
         if (ops[i].kind == OP_LABEL) {
             void *v = hashmap_sget(&ass->labels, ops[i].label);
             if (v == NULL) {
-                printf("Could not resolve label '%s'\n", mnemonic);
+                printf("Could not resolve label '%s'\n", ops[i].label);
                 ass->had_error = true;
                 return;
             }
@@ -570,7 +572,7 @@ static void assemble_next_inst(Assembler *ass)
         }
     }
 
-    skip_until_newline(ass);
+    skip_until_next_line(ass);
 
 #if 0
     /* Debug instruction */
