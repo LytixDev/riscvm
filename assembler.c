@@ -574,7 +574,7 @@ static void assemble_next_inst(Assembler *ass)
 
     skip_until_next_line(ass);
 
-#if 0
+#if 1
     /* Debug instruction */
     printf("mnemonic: %s\n", mnemonic);
     printf("rd: %d\n", ops[0].reg_id);
@@ -613,7 +613,7 @@ static void assemble_next_inst(Assembler *ass)
         if (ops[0].kind != OP_LABEL) {
             fprintf(stderr, "Pseudo op 'call' requires one operand: a label\n");
         }
-        u32 target_offset = ops[0].imm + 4;
+        u32 target_offset = ops[0].imm;
         u32 offset_high = (target_offset + 0x800) >> 12;
         u32 offset_low  = target_offset & 0xFFF;
 

@@ -84,7 +84,7 @@ static inline void reg_write(RiscVM *vm, u32 rd, u64 value)
     vm->regs[rd] = value;
 }
 
-// #define DEBUG
+#define DEBUG
 
 static void debug_print(char *fmt, ...)
 {
