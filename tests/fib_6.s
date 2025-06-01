@@ -11,7 +11,7 @@ main:
  lw ra,12(sp)
  lw s0,8(sp)
  addi sp,sp,16
- jalr ra
+ jalr ra, ra, 0
 f:
  addi sp,sp,-32
  sw ra,28(sp)
@@ -47,4 +47,4 @@ f:
  lw s0,24(sp)
  lw s1,20(sp)
  addi sp,sp,32
- jalr ra
+ jalr ra, ra, 0

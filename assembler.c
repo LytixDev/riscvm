@@ -80,7 +80,7 @@ u8 mnemonic_operand_count[MNEMONIC_COUNT] = {
     [MNEMONIC_LUI]    = 2,
     [MNEMONIC_AUIPC]  = 2,
     [MNEMONIC_JAL]    = 2,
-    [MNEMONIC_JALR]   = 2,
+    [MNEMONIC_JALR]   = 3,
 
     [MNEMONIC_BEQ]    = 3,
     [MNEMONIC_BNE]    = 3,
@@ -237,32 +237,34 @@ static Operand read_token(Assembler *ass)
     u8 imm[32];
     if ((c >= '0' && c <= '9') || c == '-') {
         while (ass->pos < ass->data_len) {
-            c = ass->data[ass->pos];
+            c = next_u8(ass);
             if (c == ',' || c == '\n' || c == ' ' || c == '\t' || c == '(') break;
             imm[i++] = c;
-            ass->pos++;
             if (i == 31) break;
         }
+        ass->pos--;
         imm[i] = 0;
         operand.imm = parse_u32(imm);
         if (c != '(') {
             operand.kind = OP_IMM;
         } else {
-            ass->pos++;
+            ass->pos++; // skip over '('
             operand.kind = OP_INDIRECT;
         }
     }
+
+    skip_spaces(ass);
 
     /* Parse register */
     i = 0;
     if (operand.kind != OP_IMM) {
         while (ass->pos < ass->data_len) {
-            u8 c = ass->data[ass->pos];
+            c = next_u8(ass);
             if (c == ',' || c == '\n' || c == ' ' || c == '\t' || c == ')') break;
             operand.label[i++] = c;
-            ass->pos++;
             if (i == 63) break;
         }
+        ass->pos--;
         operand.label[i] = 0;
         operand.reg_id = match_reg(operand.label);
         if (operand.reg_id == -1) {
@@ -449,13 +451,13 @@ static u32 encode_inst(Assembler *ass, u32 mnemonic_id, s32 rd, s32 rs1, s32 rs2
 
     /* S-type */
     case MNEMONIC_SB:
-        return encode_stype(rd, rs1, imm, OPCODE_STORE, FUNCT3_SB);
+        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SB);
     case MNEMONIC_SH:
-        return encode_stype(rd, rs1, imm, OPCODE_STORE, FUNCT3_SH);
+        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SH);
     case MNEMONIC_SW:
-        return encode_stype(rd, rs1, imm, OPCODE_STORE, FUNCT3_SW);
+        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SW);
     case MNEMONIC_SD:
-        return encode_stype(rd, rs1, imm, OPCODE_STORE, FUNCT3_SD);
+        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SD);
 
     /* B-type */
     case MNEMONIC_BEQ:
