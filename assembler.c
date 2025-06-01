@@ -45,116 +45,42 @@ char *mnemonics[] = {
     "addi", "slti", "sltiu", "xori", "ori", "andi", "slli", "srli", "srai",
     "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and",
     "addiw", "slliw", "srliw", "sraiw", "addw", "subw", "sllw", "srlw", "sraw",
-
-    "halt",
     /* Pseudo instructions */ 
-    "call", "mv"
+    "halt", "call", "mv"
 };
 
 typedef enum {
-    MNEMONIC_LUI = 0, MNEMONIC_AUIPC, MNEMONIC_JAL, MNEMONIC_JALR,
+    M_LUI = 0, M_AUIPC, M_JAL, M_JALR,
+    M_BEQ, M_BNE, M_BLT, M_BGE, M_BLTU, M_BGEU,
+    M_LB, M_LH, M_LW, M_LBU, M_LHU, M_LWU, M_LD,
+    M_SB, M_SH, M_SW, M_SD,
+    M_ADDI, M_SLTI, M_SLTIU, M_XORI, M_ORI, M_ANDI,
+    M_SLLI, M_SRLI, M_SRAI,
+    M_ADD, M_SUB, M_SLL, M_SLT, M_SLTU, M_XOR, 
+    M_SRL, M_SRA, M_OR, M_AND,
+    M_ADDIW, M_SLLIW, M_SRLIW, M_SRAIW,
+    M_ADDW, M_SUBW, M_SLLW, M_SRLW, M_SRAW,
+    M_PSEUDO_HALT, M_PSEUDO_CALL, M_PSEUDO_MV,
 
-    MNEMONIC_BEQ, MNEMONIC_BNE, MNEMONIC_BLT, MNEMONIC_BGE, MNEMONIC_BLTU, MNEMONIC_BGEU,
-
-    MNEMONIC_LB, MNEMONIC_LH, MNEMONIC_LW, MNEMONIC_LBU, MNEMONIC_LHU, MNEMONIC_LWU, MNEMONIC_LD,
-
-    MNEMONIC_SB, MNEMONIC_SH, MNEMONIC_SW, MNEMONIC_SD,
-
-    MNEMONIC_ADDI, MNEMONIC_SLTI, MNEMONIC_SLTIU, MNEMONIC_XORI, MNEMONIC_ORI, MNEMONIC_ANDI,
-    MNEMONIC_SLLI, MNEMONIC_SRLI, MNEMONIC_SRAI,
-
-    MNEMONIC_ADD, MNEMONIC_SUB, MNEMONIC_SLL, MNEMONIC_SLT, MNEMONIC_SLTU, MNEMONIC_XOR, 
-    MNEMONIC_SRL, MNEMONIC_SRA, MNEMONIC_OR, MNEMONIC_AND,
-
-    MNEMONIC_ADDIW, MNEMONIC_SLLIW, MNEMONIC_SRLIW, MNEMONIC_SRAIW,
-
-    MNEMONIC_ADDW, MNEMONIC_SUBW, MNEMONIC_SLLW, MNEMONIC_SRLW, MNEMONIC_SRAW,
-
-    MNEMONIC_PSEUDO_HALT, MNEMONIC_PSEUDO_CALL, MNEMONIC_PSEUDO_MV,
-
-    MNEMONIC_COUNT
+    M_COUNT
 } Mnemonic;
-
-// TODO: Goofy
-u8 mnemonic_operand_count[MNEMONIC_COUNT] = {
-    [MNEMONIC_LUI]    = 2,
-    [MNEMONIC_AUIPC]  = 2,
-    [MNEMONIC_JAL]    = 2,
-    [MNEMONIC_JALR]   = 3,
-
-    [MNEMONIC_BEQ]    = 3,
-    [MNEMONIC_BNE]    = 3,
-    [MNEMONIC_BLT]    = 3,
-    [MNEMONIC_BGE]    = 3,
-    [MNEMONIC_BLTU]   = 3,
-    [MNEMONIC_BGEU]   = 3,
-
-    [MNEMONIC_LB]     = 3,
-    [MNEMONIC_LH]     = 3,
-    [MNEMONIC_LW]     = 2,
-    [MNEMONIC_LBU]    = 3,
-    [MNEMONIC_LHU]    = 3,
-    [MNEMONIC_LWU]    = 3,
-    [MNEMONIC_LD]     = 3,
-
-    [MNEMONIC_SB]     = 3,
-    [MNEMONIC_SH]     = 3,
-    [MNEMONIC_SW]     = 2,
-    [MNEMONIC_SD]     = 3,
-
-    [MNEMONIC_ADDI]   = 3,
-    [MNEMONIC_SLTI]   = 3,
-    [MNEMONIC_SLTIU]  = 3,
-    [MNEMONIC_XORI]   = 3,
-    [MNEMONIC_ORI]    = 3,
-    [MNEMONIC_ANDI]   = 3,
-    [MNEMONIC_SLLI]   = 3,
-    [MNEMONIC_SRLI]   = 3,
-    [MNEMONIC_SRAI]   = 3,
-
-    [MNEMONIC_ADD]    = 3,
-    [MNEMONIC_SUB]    = 3,
-    [MNEMONIC_SLL]    = 3,
-    [MNEMONIC_SLT]    = 3,
-    [MNEMONIC_SLTU]   = 3,
-    [MNEMONIC_XOR]    = 3,
-    [MNEMONIC_SRL]    = 3,
-    [MNEMONIC_SRA]    = 3,
-    [MNEMONIC_OR]     = 3,
-    [MNEMONIC_AND]    = 3,
-
-    [MNEMONIC_ADDIW]  = 3,
-    [MNEMONIC_SLLIW]  = 3,
-    [MNEMONIC_SRLIW]  = 3,
-    [MNEMONIC_SRAIW]  = 3,
-
-    [MNEMONIC_ADDW]   = 3,
-    [MNEMONIC_SUBW]   = 3,
-    [MNEMONIC_SLLW]   = 3,
-    [MNEMONIC_SRLW]   = 3,
-    [MNEMONIC_SRAW]   = 3,
-
-    [MNEMONIC_PSEUDO_HALT] = 0,
-    [MNEMONIC_PSEUDO_CALL] = 1,
-    [MNEMONIC_PSEUDO_MV]   = 2,
-};
 
 typedef struct {
     u8 *data;
     u32 data_len;
-    u32 pos; // Used during parsing
+    u32 pos; // Holds the current position during parsing
     bool had_error;
 
     s32 inst_count;
-    s32 instruction_stream_byte_offset;
+    s32 inst_byte_offset;
     /* 
      * key: str8, 
      * value: u32: byte offset in instruction stream + 1. +1 so 0 is not treated as NULL
      */
     HashMap labels;
 
-    size_t instructions_allocated;
-    u32 *instructions;
+    size_t insts_allocated;
+    u32 *insts;
 } Assembler;
 
 typedef enum {
@@ -203,7 +129,7 @@ static void skip_until_newline(Assembler *ass)
 
 static s32 match_mnemonic(u8 mnemonic[8])
 {
-    for (u32 i = 0; i < MNEMONIC_COUNT; i++) {
+    for (u32 i = 0; i < M_COUNT; i++) {
         if (strcmp(mnemonic, mnemonics[i]) == 0) {
             return i;
         }
@@ -221,63 +147,26 @@ static s32 match_reg(u8 *name)
     return -1;
 }
 
-static Operand read_token(Assembler *ass)
+static u32 mnemonic_operand_count(u8 mnemonic)
 {
-    /*
-     * if digit -> parse imm. if open paren, parse reg, match reg
-     * else     -> parse reg, math reg
-     */
-    Operand operand = { .kind = OP_REG, .reg_id = -1, .imm = 0 };
-    skip_spaces(ass);
-    u8 c = next_u8(ass);
-    ass->pos--; // Not ideal, but we're only peeking c here
-    u32 i = 0;  
+    switch (mnemonic) {
+    case M_LUI:
+    case M_AUIPC:
+    case M_JAL:
+    case M_LW:
+    case M_SW:
+    case M_PSEUDO_MV:
+        return 2;
+    case M_PSEUDO_CALL:
+        return 1;
+    case M_PSEUDO_HALT:
+        return 0;
 
-    /* Parse immediate */
-    u8 imm[32];
-    if ((c >= '0' && c <= '9') || c == '-') {
-        while (ass->pos < ass->data_len) {
-            c = next_u8(ass);
-            if (c == ',' || c == '\n' || c == ' ' || c == '\t' || c == '(') break;
-            imm[i++] = c;
-            if (i == 31) break;
-        }
-        ass->pos--;
-        imm[i] = 0;
-        operand.imm = parse_u32(imm);
-        if (c != '(') {
-            operand.kind = OP_IMM;
-        } else {
-            ass->pos++; // skip over '('
-            operand.kind = OP_INDIRECT;
-        }
+    default:
+        return 3;
     }
-
-    skip_spaces(ass);
-
-    /* Parse register */
-    i = 0;
-    if (operand.kind != OP_IMM) {
-        while (ass->pos < ass->data_len) {
-            c = next_u8(ass);
-            if (c == ',' || c == '\n' || c == ' ' || c == '\t' || c == ')') break;
-            operand.label[i++] = c;
-            if (i == 63) break;
-        }
-        ass->pos--;
-        operand.label[i] = 0;
-        operand.reg_id = match_reg(operand.label);
-        if (operand.reg_id == -1) {
-            operand.kind = OP_LABEL;
-        }
-    }
-
-    skip_spaces(ass);
-    if (ass->data[ass->pos] == ',') {
-        ass->pos++;
-    }
-    return operand;
 }
+
 
 /*
  * funct7[31:25] | rs2[24:20] | rs1[19:15] | funct3[14:12] | rd[11:7] | opcode[6:0]
@@ -349,9 +238,9 @@ static u32 encode_btype(u8 rs1, u8 rs2, s32 imm, u8 opcode, u8 funct3)
            (imm11 << 7) |
            opcode;
 }
+
 /* 
  * imm[31:12] | rd[11:7] | opcode[6:0]
- * Note: LUI, AUIPC
  */
 static u32 encode_utype(u8 rd, s32 imm, u8 opcode)
 {
@@ -386,103 +275,161 @@ static u32 encode_inst(Assembler *ass, u32 mnemonic_id, s32 rd, s32 rs1, s32 rs2
         printf("Encoding not implemented for mnemonic '%s'\n", mnemonics[mnemonic_id]);
         ass->had_error = true;
         return 0;
-    case MNEMONIC_PSEUDO_HALT:
+    case M_PSEUDO_HALT:
         return 0;
 
     /* R-type */
-    case MNEMONIC_ADD:
+    case M_ADD:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_ADD, FUNCT3_ADD_SUB);
-    case MNEMONIC_SUB:
+    case M_SUB:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_SUB, FUNCT3_ADD_SUB);
-    case MNEMONIC_SLL:
+    case M_SLL:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_SLL, FUNCT3_SLL);
-    case MNEMONIC_SLT:
+    case M_SLT:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_SLT, FUNCT3_SLT);
-    case MNEMONIC_SLTU:
+    case M_SLTU:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_SLTU, FUNCT3_SLTU);
-    case MNEMONIC_XOR:
+    case M_XOR:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_XOR, FUNCT3_XOR);
-    case MNEMONIC_SRL:
+    case M_SRL:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_SRL, FUNCT3_SRL_SRA);
-    case MNEMONIC_SRA:
+    case M_SRA:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_SRA, FUNCT3_SRL_SRA);
-    case MNEMONIC_OR:
+    case M_OR:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_OR, FUNCT3_OR);
-    case MNEMONIC_AND:
+    case M_AND:
         return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_AND, FUNCT3_AND);
     /* Immediate here becomes the shift amount which has to be clamped to less than 63. */
-    case MNEMONIC_SLLI:
+    case M_SLLI:
         return encode_rtype(rd, rs1, imm & 63, OPCODE_OP_IMM, FUNCT7_SLL, FUNCT3_SLL);
-    case MNEMONIC_SRLI:
+    case M_SRLI:
         return encode_rtype(rd, rs1, imm & 63, OPCODE_OP_IMM, FUNCT7_SRL, FUNCT3_SRL_SRA);
-    case MNEMONIC_SRAI:
+    case M_SRAI:
         return encode_rtype(rd, rs1, imm & 63, OPCODE_OP_IMM, FUNCT7_SRA, FUNCT3_SRL_SRA);
 
     /* I-type */
-    case MNEMONIC_ADDI:
+    case M_ADDI:
         return encode_itype_op(rd, rs1, imm, OPCODE_OP_IMM, FUNCT3_ADD_SUB);
-    case MNEMONIC_SLTI:
+    case M_SLTI:
         return encode_itype_op(rd, rs1, imm, OPCODE_OP_IMM, FUNCT3_SLT);
-    case MNEMONIC_SLTIU:
+    case M_SLTIU:
         return encode_itype_op(rd, rs1, imm, OPCODE_OP_IMM, FUNCT3_SLTU);
-    case MNEMONIC_XORI:
+    case M_XORI:
         return encode_itype_op(rd, rs1, imm, OPCODE_OP_IMM, FUNCT3_XOR);
-    case MNEMONIC_ORI:
+    case M_ORI:
         return encode_itype_op(rd, rs1, imm, OPCODE_OP_IMM, FUNCT3_OR);
-    case MNEMONIC_ANDI:
+    case M_ANDI:
         return encode_itype_op(rd, rs1, imm, OPCODE_OP_IMM, FUNCT3_AND);
-    case MNEMONIC_JALR:
+    case M_JALR:
         return encode_itype_op(rd, rs1, imm, OPCODE_JALR, FUNCT3_JALR);
     /* I-type load */
-    case MNEMONIC_LB:
+    case M_LB:
         return encode_itype_load(rd, rs1, imm, FUNCT3_LB);
-    case MNEMONIC_LH:
+    case M_LH:
         return encode_itype_load(rd, rs1, imm, FUNCT3_LH);
-    case MNEMONIC_LW:
+    case M_LW:
         return encode_itype_load(rd, rs1, imm, FUNCT3_LW);
-    case MNEMONIC_LD:
+    case M_LD:
         return encode_itype_load(rd, rs1, imm, FUNCT3_LD);
-    case MNEMONIC_LBU:
+    case M_LBU:
         return encode_itype_load(rd, rs1, imm, FUNCT3_LBU);
-    case MNEMONIC_LHU:
+    case M_LHU:
         return encode_itype_load(rd, rs1, imm, FUNCT3_LHU);
-    case MNEMONIC_LWU:
+    case M_LWU:
         return encode_itype_load(rd, rs1, imm, FUNCT3_LWU);
 
     /* S-type */
-    case MNEMONIC_SB:
+    case M_SB:
         return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SB);
-    case MNEMONIC_SH:
+    case M_SH:
         return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SH);
-    case MNEMONIC_SW:
+    case M_SW:
         return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SW);
-    case MNEMONIC_SD:
+    case M_SD:
         return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SD);
 
     /* B-type */
-    case MNEMONIC_BEQ:
+    case M_BEQ:
         return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BEQ);
-    case MNEMONIC_BNE:
+    case M_BNE:
         return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BNE);
-    case MNEMONIC_BLT:
+    case M_BLT:
         return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BLT);
-    case MNEMONIC_BGE:
+    case M_BGE:
         return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BGE);
-    case MNEMONIC_BLTU:
+    case M_BLTU:
         return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BLTU);
-    case MNEMONIC_BGEU:
+    case M_BGEU:
         return encode_btype(rd, rs1, imm, OPCODE_BRANCH, FUNCT3_BGEU);
 
     /* U-type */
-    case MNEMONIC_LUI:
+    case M_LUI:
         return encode_utype(rd, imm, OPCODE_LUI);
-    case MNEMONIC_AUIPC:
+    case M_AUIPC:
         return encode_utype(rd, imm, OPCODE_AUIPC);
         
     /* J-type */
-    case MNEMONIC_JAL:
+    case M_JAL:
         return encode_jtype(rd, imm, OPCODE_JAL);
     }
+}
+
+static Operand next_operand(Assembler *ass)
+{
+    /*
+     * if digit -> parse imm. if open paren, parse reg, match reg
+     * else     -> parse reg, math reg
+     */
+    Operand operand = { .kind = OP_REG, .reg_id = -1, .imm = 0 };
+    skip_spaces(ass);
+    u8 c = next_u8(ass);
+    ass->pos--; // Not ideal, but we're only peeking c here
+    u32 i = 0;  
+
+    /* Parse immediate */
+    u8 imm[32];
+    if ((c >= '0' && c <= '9') || c == '-') {
+        while (ass->pos < ass->data_len) {
+            c = next_u8(ass);
+            if (c == ',' || c == '\n' || c == ' ' || c == '\t' || c == '(') break;
+            imm[i++] = c;
+            if (i == 31) break;
+        }
+        ass->pos--;
+        imm[i] = 0;
+        operand.imm = parse_u32(imm);
+        if (c != '(') {
+            operand.kind = OP_IMM;
+        } else {
+            ass->pos++; // skip over '('
+            operand.kind = OP_INDIRECT;
+        }
+    }
+
+    skip_spaces(ass);
+
+    /* Parse register */
+    i = 0;
+    if (operand.kind != OP_IMM) {
+        while (ass->pos < ass->data_len) {
+            c = next_u8(ass);
+            if (c == ',' || c == '\n' || c == ' ' || c == '\t' || c == ')') break;
+            operand.label[i++] = c;
+            if (i == 63) break;
+        }
+        ass->pos--;
+        operand.label[i] = 0;
+        operand.reg_id = match_reg(operand.label);
+        if (operand.reg_id == -1) {
+            operand.kind = OP_LABEL;
+        }
+    }
+
+    skip_spaces(ass);
+    if (ass->data[ass->pos] == ',') {
+        ass->pos++;
+    }
+    return operand;
 }
 
 static void resolve_labels(Assembler *ass)
@@ -509,38 +456,35 @@ static void resolve_labels(Assembler *ass)
                 return;
             }
         } while ((c = next_u8(ass)) != ' ' && c != '\n');
+        label_name[i] = 0;
+
         /* Empty label */
         if (i == 0) {
             printf("Empty label name.\n");
             ass->had_error = true;
             return;
         }
-        label_name[i] = 0;
         /* Not a label. So an instruction. */
         if (label_name[i - 1] != ':') {
-            // TODO: Pseudo instruction 'call' resolves into two instructions.
-            //       I need to revisit this code and make it cleaner and not hardcoded for call.
+            /* Pseudo instruction call resolves into two instructions */
             if (strcmp(label_name, "call") == 0) {
-                ass->instruction_stream_byte_offset += 8;
+                ass->inst_byte_offset += 8;
             } else {
-                ass->instruction_stream_byte_offset += 4;
+                ass->inst_byte_offset += 4;
             }
             skip_until_newline(ass);
             continue;
         }
+        /* Execution enters here on encountering a label */
         label_name[i - 1] = 0; // Replace ':' with null terminator
-
-        // NOTE: Kind of stupid and hacky use of the hasmpap. Fix later.
         void *v = hashmap_sget(&ass->labels, label_name);
         if (v != NULL) {
             printf("Found duplicate labels '%s'\n", label_name);
             ass->had_error = true;
             return;
         }
-
         hashmap_sput(&ass->labels, label_name, 
-                     (u32 *)(size_t)(ass->instruction_stream_byte_offset + 1), sizeof(u32 *), false);
-
+                     (u32 *)(size_t)(ass->inst_byte_offset + 1), sizeof(u32 *), false);
         if (c != '\n') {
             skip_until_newline(ass);
         }
@@ -548,19 +492,18 @@ static void resolve_labels(Assembler *ass)
 
     /* Reset pos before the next pass */
     ass->pos = 0;
-    ass->instruction_stream_byte_offset = 0;
+    ass->inst_byte_offset = 0;
 }
-
 
 static void emit_instruction(Assembler *ass, u32 inst)
 {
-    if (ass->inst_count > ass->instructions_allocated) {
-        ass->instructions_allocated *= 2;
-        ass->instructions = realloc(ass->instructions, sizeof(u32) * ass->instructions_allocated);
+    if (ass->inst_count > ass->insts_allocated) {
+        ass->insts_allocated *= 2;
+        ass->insts = realloc(ass->insts, sizeof(u32) * ass->insts_allocated);
     }
-    ass->instructions[ass->inst_count] = inst;
+    ass->insts[ass->inst_count] = inst;
     ass->inst_count++;
-    ass->instruction_stream_byte_offset += 4;
+    ass->inst_byte_offset += 4;
 }
 
 static void assemble_next_inst(Assembler *ass)
@@ -599,9 +542,9 @@ static void assemble_next_inst(Assembler *ass)
         if (c != '\n') {
             skip_until_newline(ass);
         }
-        //return assemble_next_inst(ass);
         return;
     }
+
     /* Only progress here if mnemonic is not a label */
     s32 mnemonic_id = match_mnemonic(mnemonic);
     if (mnemonic_id == -1) {
@@ -609,36 +552,28 @@ static void assemble_next_inst(Assembler *ass)
         ass->had_error = true;
         return;
     }
-#if 0
-        printf("'%s'\n", mnemonic);
-#endif
-
-    /* If halt pseudo op then early return */
-    if (mnemonic_id == MNEMONIC_PSEUDO_HALT) {
-        emit_instruction(ass, 0);
-        return;
-    }
 
     /* Parse operands */
-    u32 n_ops = mnemonic_operand_count[mnemonic_id];
-
+    u32 n_ops = mnemonic_operand_count(mnemonic_id);
     Operand ops[n_ops];
     for (u32 i = 0; i < n_ops; i++) {
-        ops[i] = read_token(ass);
+        ops[i] = next_operand(ass);
         if (ops[i].kind == OP_LABEL) {
             void *v = hashmap_sget(&ass->labels, ops[i].label);
-            if (v != NULL) {
-                /* PC-relative */
-                ops[i].imm = (((u32)(size_t)v) - 1) - ass->instruction_stream_byte_offset;
-            } else {
+            if (v == NULL) {
                 printf("Could not resolve label '%s'\n", mnemonic);
                 ass->had_error = true;
                 return;
             }
+            /* Immediate becomes the PC-relative offset from the label */
+            ops[i].imm = (((u32)(size_t)v) - 1) - ass->inst_byte_offset;
         }
     }
 
+    skip_until_newline(ass);
+
 #if 0
+    /* Debug instruction */
     printf("mnemonic: %s\n", mnemonic);
     printf("rd: %d\n", ops[0].reg_id);
     printf("rs1: %d\n", ops[1].reg_id);
@@ -650,10 +585,24 @@ static void assemble_next_inst(Assembler *ass)
     printf("\n");
 #endif
 
-    skip_spaces(ass);
-    skip_until_newline(ass);
-
-    if (mnemonic_id == MNEMONIC_PSEUDO_CALL) {
+    /* Encode instruction */
+    switch (mnemonic_id) {
+    /* Normal instructions */
+    default: {
+        u32 imm = ops[2].imm;
+        if (n_ops == 2) {
+            imm = ops[1].imm;
+        }
+        emit_instruction(ass, encode_inst(ass, mnemonic_id, ops[0].reg_id, ops[1].reg_id, ops[2].reg_id, imm));
+    }; break;
+    /* Pseudo instructions */
+    case M_PSEUDO_HALT:
+        emit_instruction(ass, 0);
+        break;
+    case M_PSEUDO_MV:
+        emit_instruction(ass, encode_inst(ass, M_ADDI, ops[0].reg_id, ops[1].reg_id, -1, 0));
+        break;
+    case M_PSEUDO_CALL: {
         /* 
          * Transalte pseudo operation call into 
          * auipc ra, offser[31:12]
@@ -666,16 +615,9 @@ static void assemble_next_inst(Assembler *ass)
         u32 offset_high = (target_offset + 0x800) >> 12;
         u32 offset_low  = target_offset & 0xFFF;
 
-        emit_instruction(ass, encode_inst(ass, MNEMONIC_AUIPC, REG_RA, -1, -1, offset_high));
-        emit_instruction(ass, encode_inst(ass, MNEMONIC_JALR, REG_RA, REG_RA, -1, offset_low));
-    } else if (mnemonic_id == MNEMONIC_PSEUDO_MV) {
-        emit_instruction(ass, encode_inst(ass, MNEMONIC_ADDI, ops[0].reg_id, ops[1].reg_id, -1, 0));
-    } else {
-        u32 imm = ops[2].imm;
-        if (n_ops == 2) {
-            imm = ops[1].imm;
-        }
-        emit_instruction(ass, encode_inst(ass, mnemonic_id, ops[0].reg_id, ops[1].reg_id, ops[2].reg_id, imm));
+        emit_instruction(ass, encode_inst(ass, M_AUIPC, REG_RA, -1, -1, offset_high));
+        emit_instruction(ass, encode_inst(ass, M_JALR, REG_RA, REG_RA, -1, offset_low));
+    }; break;
     }
 }
 
@@ -698,7 +640,7 @@ BinaryBuf read_file(u8 *filename)
     buf.data = malloc(sizeof(u8) * (buf.size + 1));
     buf.data[buf.size] = 0;
     if (fread(buf.data, sizeof(u8), st.st_size, fp) != buf.size) {
-        LOG_FATAL("Could not read file '%s'", filename);
+        fprintf(stderr, "Could not read file '%s'", filename);
         free(buf.data);
         fclose(fp);
         return buf;
@@ -715,18 +657,18 @@ BinaryBuf assemble_file(u8 *input_file)
         return (BinaryBuf){ .data = NULL };
     }
 
+    /* Initialize assembler */
     Assembler ass = {0};
     ass.data = input_data.data;
     ass.data_len = input_data.size;
     hashmap_init(&ass.labels);
-    ass.instructions_allocated = 128;
-    ass.instructions = malloc(sizeof(u32) * ass.instructions_allocated);
+    ass.insts_allocated = 128;
+    ass.insts = malloc(sizeof(u32) * ass.insts_allocated);
 
     /* First pass. Label resolution. */
     resolve_labels(&ass);
 
     /* Second pass. Code gen. */
-    size_t instructions_allocated = 128;
     while (!ass.had_error && ass.pos < ass.data_len) {
         assemble_next_inst(&ass);
     }
@@ -738,6 +680,5 @@ BinaryBuf assemble_file(u8 *input_file)
     if (ass.had_error) {
         return (BinaryBuf){ .data = NULL };
     }
-
-    return (BinaryBuf){ .size = ass.inst_count, .data = (u8 *)ass.instructions };
+    return (BinaryBuf){ .size = ass.inst_count, .data = (u8 *)ass.insts };
 }
