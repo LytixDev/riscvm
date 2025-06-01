@@ -44,7 +44,9 @@ static u16 mem_load16(RiscVM *vm, u64 addr)
 
 static u32 mem_load32(RiscVM *vm, u64 addr) 
 {
-    return *(u32 *)&vm->memory[addr];
+    u32 word = *(u32 *)&vm->memory[addr];
+    //printf("%lx - %ld\n", addr, (s64)word);
+    return word;
 }
 
 static u64 mem_load64(RiscVM *vm, u64 addr) 
@@ -78,6 +80,7 @@ static inline void reg_write(RiscVM *vm, u32 rd, u64 value)
     if (rd == 0) {
         return;
     }
+    // printf("write to %d :: %lu (s64 %ld)\n", rd, value, (s64)value);
     vm->regs[rd] = value;
 }
 
@@ -476,7 +479,7 @@ void dump_regs_to_buffer(RiscVM *vm, u8 *buf, size_t buf_size, bool ignore_zero)
 
 void execute_until_halt(RiscVM *vm, u32 *instructions)
 {
-    vm->regs[REG_SP] = 0x100000;
+    vm->regs[REG_SP] = 0x10000;
     bool halt = false;
     while (!halt) {
         halt = execute_instruction(vm, instructions[vm->pc >> 2]);
