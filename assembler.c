@@ -80,7 +80,7 @@ u8 mnemonic_operand_count[MNEMONIC_COUNT] = {
     [MNEMONIC_LUI]    = 2,
     [MNEMONIC_AUIPC]  = 2,
     [MNEMONIC_JAL]    = 2,
-    [MNEMONIC_JALR]   = 1,
+    [MNEMONIC_JALR]   = 2,
 
     [MNEMONIC_BEQ]    = 3,
     [MNEMONIC_BNE]    = 3,
@@ -237,7 +237,7 @@ static Operand read_token(Assembler *ass)
     u8 imm[32];
     if ((c >= '0' && c <= '9') || c == '-') {
         while (ass->pos < ass->data_len) {
-            u8 c = ass->data[ass->pos];
+            c = ass->data[ass->pos];
             if (c == ',' || c == '\n' || c == ' ' || c == '\t' || c == '(') break;
             imm[i++] = c;
             ass->pos++;
@@ -248,6 +248,7 @@ static Operand read_token(Assembler *ass)
         if (c != '(') {
             operand.kind = OP_IMM;
         } else {
+            ass->pos++;
             operand.kind = OP_INDIRECT;
         }
     }
@@ -448,13 +449,13 @@ static u32 encode_inst(Assembler *ass, u32 mnemonic_id, s32 rd, s32 rs1, s32 rs2
 
     /* S-type */
     case MNEMONIC_SB:
-        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SB);
+        return encode_stype(rd, rs1, imm, OPCODE_STORE, FUNCT3_SB);
     case MNEMONIC_SH:
-        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SH);
+        return encode_stype(rd, rs1, imm, OPCODE_STORE, FUNCT3_SH);
     case MNEMONIC_SW:
-        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SW);
+        return encode_stype(rd, rs1, imm, OPCODE_STORE, FUNCT3_SW);
     case MNEMONIC_SD:
-        return encode_stype(rs1, rd, imm, OPCODE_STORE, FUNCT3_SD);
+        return encode_stype(rd, rs1, imm, OPCODE_STORE, FUNCT3_SD);
 
     /* B-type */
     case MNEMONIC_BEQ:
@@ -512,9 +513,16 @@ static void resolve_labels(Assembler *ass)
             ass->had_error = true;
             return;
         }
+        label_name[i] = 0;
         /* Not a label. So an instruction. */
         if (label_name[i - 1] != ':') {
-            ass->instruction_stream_byte_offset += 4;
+            // TODO: Pseudo instruction 'call' resolves into two instructions.
+            //       I need to revisit this code and make it cleaner and not hardcoded for call.
+            if (strcmp(label_name, "call") == 0) {
+                ass->instruction_stream_byte_offset += 8;
+            } else {
+                ass->instruction_stream_byte_offset += 4;
+            }
             skip_until_newline(ass);
             continue;
         }
@@ -652,16 +660,20 @@ static void assemble_next_inst(Assembler *ass)
         if (ops[0].kind != OP_LABEL) {
             fprintf(stderr, "Pseudo op 'call' requires one operand: a label\n");
         }
-        u32 target_offset = ops[0].imm;
+        u32 target_offset = ops[0].imm + 4;
         u32 offset_high = (target_offset + 0x800) >> 12;
         u32 offset_low  = target_offset & 0xFFF;
 
         emit_instruction(ass, encode_inst(ass, MNEMONIC_AUIPC, REG_RA, -1, -1, offset_high));
-        emit_instruction(ass, encode_inst(ass, MNEMONIC_JALR, REG_RA, -1, -1, offset_low));
+        emit_instruction(ass, encode_inst(ass, MNEMONIC_JALR, REG_RA, REG_RA, -1, offset_low));
     } else if (mnemonic_id == MNEMONIC_PSEUDO_MV) {
         emit_instruction(ass, encode_inst(ass, MNEMONIC_ADDI, ops[0].reg_id, ops[1].reg_id, -1, 0));
     } else {
-        emit_instruction(ass, encode_inst(ass, mnemonic_id, ops[0].reg_id, ops[1].reg_id, ops[2].reg_id, ops[2].imm));
+        u32 imm = ops[2].imm;
+        if (n_ops == 2) {
+            imm = ops[1].imm;
+        }
+        emit_instruction(ass, encode_inst(ass, mnemonic_id, ops[0].reg_id, ops[1].reg_id, ops[2].reg_id, imm));
     }
 }
 

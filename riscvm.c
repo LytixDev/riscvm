@@ -81,6 +81,18 @@ static inline void reg_write(RiscVM *vm, u32 rd, u64 value)
     vm->regs[rd] = value;
 }
 
+// #define DEBUG
+
+static void debug_print(char *fmt, ...)
+{
+#ifdef DEBUG
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+#endif
+}
+
 bool execute_instruction(RiscVM *vm, u32 inst)
 {
     vm->steps += 1;
@@ -89,9 +101,11 @@ bool execute_instruction(RiscVM *vm, u32 inst)
     switch (opcode) {
     default:
         printf("Unknown opcode: 0x%02X\n", opcode);
+        debug_print("Unknown instruction 0x%08X\n", inst);
         break;
 
     case OPCODE_HALT:
+        debug_print("HALT\n");
         return true;
 
     /* 
@@ -114,40 +128,51 @@ bool execute_instruction(RiscVM *vm, u32 inst)
         case FUNCT3_ADD_SUB:
             if (funct7 == FUNCT7_ADD) {
                 reg_write(vm, rd, vm->regs[rs1] + vm->regs[rs2]);
+                debug_print("ADD x%d, x%d, x%d\n", rd, rs1, rs2);
             } else if (funct7 == FUNCT7_SUB) {
                 reg_write(vm, rd, vm->regs[rs1] - vm->regs[rs2]);
+                debug_print("SUB x%d, x%d, x%d\n", rd, rs1, rs2);
             }
             break;
         case FUNCT3_SLL:
             // TODO: redundant to check for funct7? Ommited for the rest of the cases
             if (funct7 == FUNCT7_SLL) {
                 reg_write(vm, rd, vm->regs[rs1] << (vm->regs[rs2] & 63));
+                debug_print("SLL x%d, x%d, x%d\n", rd, rs1, rs2);
             }
             break;
         case FUNCT3_SLT:
             reg_write(vm, rd, (s64)vm->regs[rs1] < (s64)vm->regs[rs2]);
+            debug_print("SLT x%d, x%d, x%d\n", rd, rs1, rs2);
             break;
         case FUNCT3_SLTU:
             reg_write(vm, rd, vm->regs[rs1] < vm->regs[rs2]);
+            debug_print("SLTU x%d, x%d, x%d\n", rd, rs1, rs2);
             break;
         case FUNCT3_XOR:
             reg_write(vm, rd, vm->regs[rs1] ^ vm->regs[rs2]);
+            debug_print("XOR x%d, x%d, x%d\n", rd, rs1, rs2);
             break;
         case FUNCT3_SRL_SRA:
             if (funct7 == FUNCT7_SRL) {
                 reg_write(vm, rd, vm->regs[rs1] >> (vm->regs[rs2] & 63));
+                debug_print("SRL x%d, x%d, x%d\n", rd, rs1, rs2);
             } else if (funct7 == FUNCT7_SRA) {
                 reg_write(vm, rd, (s64)vm->regs[rs1] >> (vm->regs[rs2] & 63));
+                debug_print("SRA x%d, x%d, x%d\n", rd, rs1, rs2);
             }
             break;
         case FUNCT3_OR:
             reg_write(vm, rd, vm->regs[rs1] | vm->regs[rs2]);
+            debug_print("OR x%d, x%d, x%d\n", rd, rs1, rs2);
             break;
         case FUNCT3_AND:
             reg_write(vm, rd, vm->regs[rs1] & vm->regs[rs2]);
+            debug_print("AND x%d, x%d, x%d\n", rd, rs1, rs2);
             break;
         default:
             // TODO: invalid instruction
+            debug_print("Unknown R-type funct3=0x%X\n", funct3);
             break;
         }
     }; break;
@@ -169,37 +194,47 @@ bool execute_instruction(RiscVM *vm, u32 inst)
         switch (funct3) {
         case FUNCT3_ADD_SUB:
             reg_write(vm, rd, vm->regs[rs1] + imm);
+            debug_print("ADDI x%d, x%d, %d\n", rd, rs1, imm);
             break;
         case FUNCT3_SLT:
             reg_write(vm, rd, (s64)vm->regs[rs1] < (s64)imm);
+            debug_print("SLTI x%d, x%d, %d\n", rd, rs1, imm);
             break;
         case FUNCT3_SLTU:
             reg_write(vm, rd, vm->regs[rs1] < (s64)imm);
+            debug_print("SLTIU x%d, x%d, %d\n", rd, rs1, imm);
             break;
         case FUNCT3_XOR:
             reg_write(vm, rd, vm->regs[rs1] ^ imm);
+            debug_print("XORI x%d, x%d, %d\n", rd, rs1, imm);
             break;
         case FUNCT3_OR:
             reg_write(vm, rd, vm->regs[rs1] | imm);
+            debug_print("ORI x%d, x%d, %d\n", rd, rs1, imm);
             break;
         case FUNCT3_AND:
             reg_write(vm, rd, vm->regs[rs1] & imm);
+            debug_print("ANDI x%d, x%d, %d\n", rd, rs1, imm);
             break;
         case FUNCT3_SLL:
             reg_write(vm, rd, vm->regs[rs1] << (imm & 0x63));
+            debug_print("SLLI x%d, x%d, %d\n", rd, rs1, (imm & 0x3F));
             break;
         case FUNCT3_SRL_SRA: {
             s32 shamt_max_6_bits = imm & 0x3F;
             u8 funct7 = (inst >> 25) & 0x7F;
             if (funct7 == FUNCT7_SRL) {
                 reg_write(vm, rd, vm->regs[rs1] >> shamt_max_6_bits); // Logical right shift
+                debug_print("SRLI x%d, x%d, %d\n", rd, rs1, shamt_max_6_bits);
             } else if (funct7 == FUNCT7_SRA) {
                 reg_write(vm, rd, (s64)vm->regs[rs1] >> shamt_max_6_bits);  // Arithmetic right shift
+                debug_print("SRAI x%d, x%d, %d\n", rd, rs1, shamt_max_6_bits);
             }
             break;
         }
         default:
             // TODO: invalid instruction
+            debug_print("Unknown I-type funct3=0x%X\n", funct3);
             break;
         }
     }; break;
@@ -221,27 +256,35 @@ bool execute_instruction(RiscVM *vm, u32 inst)
         switch (funct3) {
         case FUNCT3_LB:
             reg_write(vm, rd, (s8)mem_load8(vm, addr));
+            debug_print("LB x%d, %d(x%d)\n", rd, imm, rs1);
             break;
         case FUNCT3_LH:
             reg_write(vm, rd, (s16)mem_load16(vm, addr));
+            debug_print("LH x%d, %d(x%d)\n", rd, imm, rs1);
             break;
         case FUNCT3_LW:
             reg_write(vm, rd, (s32)mem_load32(vm, addr));
+            debug_print("LW x%d, %d(x%d)\n", rd, imm, rs1);
             break;
         case FUNCT3_LD:
             reg_write(vm, rd, (s64)mem_load64(vm, addr));
+            debug_print("LD x%d, %d(x%d)\n", rd, imm, rs1);
             break;
         case FUNCT3_LBU:
             reg_write(vm, rd, mem_load8(vm, addr));
+            debug_print("LBU x%d, %d(x%d)\n", rd, imm, rs1);
             break;
         case FUNCT3_LHU:
             reg_write(vm, rd, mem_load16(vm, addr));
+            debug_print("LHU x%d, %d(x%d)\n", rd, imm, rs1);
             break;
         case FUNCT3_LWU:
             reg_write(vm, rd, mem_load32(vm, addr));
+            debug_print("LWU x%d, %d(x%d)\n", rd, imm, rs1);
             break;
         default:
             // TODO: invalid load funct3
+            debug_print("Unknown LOAD funct3=0x%X\n", funct3);
             break;
         }
     }; break;
@@ -268,18 +311,23 @@ bool execute_instruction(RiscVM *vm, u32 inst)
         switch (funct3) {
         case FUNCT3_SB:
             mem_store8(vm, addr, (u8)value);
+            debug_print("SB x%d, %d(x%d)\n", rs2, imm, rs1);
             break;
         case FUNCT3_SH:
             mem_store16(vm, addr, (u16)value);
+            debug_print("SH x%d, %d(x%d)\n", rs2, imm, rs1);
             break;
         case FUNCT3_SW:
             mem_store32(vm, addr, (u32)value);
+            debug_print("SW x%d, %d(x%d)\n", rs2, imm, rs1);
             break;
         case FUNCT3_SD:
             mem_store64(vm, addr, value);
+            debug_print("SD x%d, %d(x%d)\n", rs2, imm, rs1);
             break;
         default:
             // TODO: invalid store funct3
+            debug_print("Unknown STORE funct3=0x%X\n", funct3);
             break;
         }
     }; break;
@@ -313,24 +361,31 @@ bool execute_instruction(RiscVM *vm, u32 inst)
         switch (funct3) {
         case FUNCT3_BEQ:
             do_branch = (vm->regs[rs1] == vm->regs[rs2]);
+            debug_print("BEQ x%d, x%d, %d (taken=%s)\n", rs1, rs2, imm, do_branch ? "yes" : "no");
             break;
         case FUNCT3_BNE:
             do_branch = (vm->regs[rs1] != vm->regs[rs2]);
+            debug_print("BNE x%d, x%d, %d (taken=%s)\n", rs1, rs2, imm, do_branch ? "yes" : "no");
             break;
         case FUNCT3_BLT:
             do_branch = ((s64)vm->regs[rs1] < (s64)vm->regs[rs2]);
+            debug_print("BLT x%d, x%d, %d (taken=%s)\n", rs1, rs2, imm, do_branch ? "yes" : "no");
             break;
         case FUNCT3_BGE:
             do_branch = ((s64)vm->regs[rs1] >= (s64)vm->regs[rs2]);
+            debug_print("BGE x%d, x%d, %d (taken=%s)\n", rs1, rs2, imm, do_branch ? "yes" : "no");
             break;
         case FUNCT3_BLTU:
             do_branch = (vm->regs[rs1] < vm->regs[rs2]);
+            debug_print("BLTU x%d, x%d, %d (taken=%s)\n", rs1, rs2, imm, do_branch ? "yes" : "no");
             break;
         case FUNCT3_BGEU:
             do_branch = (vm->regs[rs1] >= vm->regs[rs2]);
+            debug_print("BGEU x%d, x%d, %d (taken=%s)\n", rs1, rs2, imm, do_branch ? "yes" : "no");
             break;
         default:
             // TODO: Handle invalid funct3
+            debug_print("Unknown BRANCH funct3=0x%X\n", funct3);
             break;
         }
 
@@ -347,12 +402,14 @@ bool execute_instruction(RiscVM *vm, u32 inst)
         s32 imm = inst & 0xFFFFF000; // Everything but the first 3 bytes
         reg_write(vm, rd, imm);
         vm->pc += 4;
+        debug_print("LUI x%d, 0x%X\n", rd, imm >> 12);
     }; break;
     case OPCODE_AUIPC: {
         u8 rd = (inst >> 7) & 0b11111;
         s32 imm = inst & 0xFFFFF000; // Everything but the first 3 bytes
         reg_write(vm, rd, vm->pc + imm);
         vm->pc += 4;
+        debug_print("AUIPC x%d, 0x%X\n", rd, imm >> 12);
     }; break;
 
     case OPCODE_JAL: {
@@ -367,6 +424,7 @@ bool execute_instruction(RiscVM *vm, u32 inst)
         
         reg_write(vm, rd, vm->pc + 4);
         vm->pc += imm;
+        debug_print("JAL x%d, %d\n", rd, imm);
     }; break;
     case OPCODE_JALR: {
         u8 rd = (inst >> 7) & 0b11111;
@@ -378,6 +436,7 @@ bool execute_instruction(RiscVM *vm, u32 inst)
         u64 target = (vm->regs[rs1] + imm) & ~1ULL;
         reg_write(vm, rd, vm->pc + 4);
         vm->pc = target;
+        debug_print("JALR x%d, x%d, %d\n", rd, rs1, imm);
     }; break;
 
     }
@@ -389,7 +448,7 @@ void dump_regs(RiscVM *vm, bool ignore_zero)
 {
     for (u32 i = 0; i < 32; i++) {
         s64 value = vm->regs[i];
-        if (ignore_zero && value == 0) {
+        if ((ignore_zero && value == 0) || i == 2) {
             continue;
         }
         printf("x%d = %ld\n", i, value);
@@ -401,7 +460,8 @@ void dump_regs_to_buffer(RiscVM *vm, u8 *buf, size_t buf_size, bool ignore_zero)
     size_t offset = 0;
     for (u32 i = 0; i < 32; i++) {
         s64 value = vm->regs[i];
-        if (ignore_zero && value == 0) {
+        /* Ignore stack pointer for now */
+        if ((ignore_zero && value == 0) || i == 2) {
             continue;
         }
         int written = snprintf(buf + offset, buf_size - offset, "x%d = %ld\n", i, value);
@@ -416,10 +476,10 @@ void dump_regs_to_buffer(RiscVM *vm, u8 *buf, size_t buf_size, bool ignore_zero)
 
 void execute_until_halt(RiscVM *vm, u32 *instructions)
 {
+    vm->regs[REG_SP] = 0x100000;
     bool halt = false;
     while (!halt) {
         halt = execute_instruction(vm, instructions[vm->pc >> 2]);
     }
-    // while (!execute_instruction(vm, instructions[vm->pc >> 2]));
 }
 
