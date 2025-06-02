@@ -23,7 +23,7 @@ add:
         sw      a1, -24(s0)
         lw      a0, -20(s0)
         lw      a1, -24(s0)
-        addw    a0, a0, a1
+        add     a0, a0, a1
         ld      ra, 24(sp)
         ld      s0, 16(sp)
         addi    sp, sp, 32

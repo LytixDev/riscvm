@@ -46,7 +46,7 @@ char *mnemonics[] = {
     "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and",
     "addiw", "slliw", "srliw", "sraiw", "addw", "subw", "sllw", "srlw", "sraw",
     /* Pseudo instructions */ 
-    "halt", "call", "mv"
+    "halt", "call", "mv", "li", "ret"
 };
 
 typedef enum {
@@ -60,7 +60,7 @@ typedef enum {
     M_SRL, M_SRA, M_OR, M_AND,
     M_ADDIW, M_SLLIW, M_SRLIW, M_SRAIW,
     M_ADDW, M_SUBW, M_SLLW, M_SRLW, M_SRAW,
-    M_PSEUDO_HALT, M_PSEUDO_CALL, M_PSEUDO_MV,
+    M_PSEUDO_HALT, M_PSEUDO_CALL, M_PSEUDO_MV, M_PSEUDO_LI, M_PSEUDO_RET,
 
     M_COUNT
 } Mnemonic;
@@ -154,16 +154,21 @@ static u32 mnemonic_operand_count(u8 mnemonic)
     case M_LUI:
     case M_AUIPC:
     case M_JAL:
+    case M_LB:
+    case M_LH:
     case M_LW:
+    case M_LD:
     case M_SB:
     case M_SH:
     case M_SW:
     case M_SD:
     case M_PSEUDO_MV:
+    case M_PSEUDO_LI:
         return 2;
     case M_PSEUDO_CALL:
         return 1;
     case M_PSEUDO_HALT:
+    case M_PSEUDO_RET:
         return 0;
 
     default:
@@ -272,7 +277,7 @@ static u32 encode_jtype(u8 rd, s32 imm, u8 opcode)
 }
 
 
-static u32 encode_inst(Assembler *ass, u32 mnemonic_id, s32 rd, s32 rs1, s32 rs2, u32 imm)
+static u32 encode_inst(Assembler *ass, u32 mnemonic_id, s32 rd, s32 rs1, s32 rs2, s32 imm)
 {
     switch (mnemonic_id) {
     default:
@@ -471,8 +476,8 @@ static void resolve_labels(Assembler *ass)
         }
         /* Not a label. So an instruction. */
         if (label_name[i - 1] != ':') {
-            /* Pseudo instruction call resolves into two instructions */
-            if (strcmp(label_name, "call") == 0) {
+            /* Pseudo instruction call and li resolves into two instructions */
+            if (strcmp(label_name, "call") == 0 || strcmp(label_name, "li") == 0) {
                 ass->inst_byte_offset += 8;
             } else {
                 ass->inst_byte_offset += 4;
@@ -580,21 +585,30 @@ static void assemble_next_inst(Assembler *ass)
 #if 0
     /* Debug instruction */
     printf("mnemonic: %s\n", mnemonic);
-    printf("rd: %d\n", ops[0].reg_id);
-    printf("rs1: %d\n", ops[1].reg_id);
-    if (ops[2].reg_id != -1) {
-        printf("rs2: %d\n", ops[2].reg_id);
-    } else {
-        printf("imm: %d\n", ops[2].imm);
+    for (u32 i = 0; i < n_ops; i++) {
+        if (ops[i].kind == OP_REG) {
+            printf("%d: x%d\n", i, ops[i].reg_id);
+        } else if (ops[i].kind == OP_INDIRECT) {
+            printf("%d: %d(x%d)\n", i, ops[i].imm, ops[i].reg_id);
+        } else {
+            printf("%d: %d\n", i, ops[i].imm);
+        }
     }
-    printf("\n");
+    //printf("rd: %d\n", ops[0].reg_id);
+    //printf("rs1: %d\n", ops[1].reg_id);
+    //if (ops[2].reg_id != -1) {
+    //    printf("rs2: %d\n", ops[2].reg_id);
+    //} else {
+    //    printf("imm: %d\n", ops[2].imm);
+    //}
+    //printf("\n");
 #endif
 
     /* Encode instruction */
     switch (mnemonic_id) {
     /* Normal instructions */
     default: {
-        u32 imm = ops[2].imm;
+        s32 imm = ops[2].imm;
         if (n_ops == 2) {
             imm = ops[1].imm;
         }
@@ -604,9 +618,20 @@ static void assemble_next_inst(Assembler *ass)
     case M_PSEUDO_HALT:
         emit_instruction(ass, 0);
         break;
+    case M_PSEUDO_RET:
+        emit_instruction(ass, encode_inst(ass, M_JALR, REG_ZERO, REG_RA, -1, 0));
+        break;
     case M_PSEUDO_MV:
         emit_instruction(ass, encode_inst(ass, M_ADDI, ops[0].reg_id, ops[1].reg_id, -1, 0));
         break;
+    case M_PSEUDO_LI: {
+        // TODO: If the imm fits in 12 bits then we can ommit the LUI instruction
+        s32 imm = ops[1].imm;
+        u32 upper_20_bits = (imm + 0x800) >> 12;
+        u32 lower_12_bits = imm & 0xFFF;
+        emit_instruction(ass, encode_inst(ass, M_LUI, ops[0].reg_id, -1, -1, upper_20_bits));
+        emit_instruction(ass, encode_inst(ass, M_ADDI, ops[0].reg_id, ops[0].reg_id, -1, lower_12_bits));
+    } ; break;
     case M_PSEUDO_CALL: {
         /* 
          * Transalte pseudo operation call into 
