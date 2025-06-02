@@ -65,6 +65,7 @@ void run_all_tests(void)
     run_test("tests/arith_imm.s", "tests/arith_imm.regs");
     run_test("tests/load_store.s", "tests/load_store.regs");
     run_test("tests/add_call.s", "tests/add_call.regs");
+    run_test("tests/fib_16.s", "tests/fib_16.regs");
 }
 
 void assemble_and_save(u8 *input_file)

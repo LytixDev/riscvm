@@ -46,7 +46,7 @@ char *mnemonics[] = {
     "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and",
     "addiw", "slliw", "srliw", "sraiw", "addw", "subw", "sllw", "srlw", "sraw",
     /* Pseudo instructions */ 
-    "halt", "call", "mv", "li", "ret"
+    "halt", "call", "mv", "li", "ret", "j"
 };
 
 typedef enum {
@@ -60,7 +60,7 @@ typedef enum {
     M_SRL, M_SRA, M_OR, M_AND,
     M_ADDIW, M_SLLIW, M_SRLIW, M_SRAIW,
     M_ADDW, M_SUBW, M_SLLW, M_SRLW, M_SRAW,
-    M_PSEUDO_HALT, M_PSEUDO_CALL, M_PSEUDO_MV, M_PSEUDO_LI, M_PSEUDO_RET,
+    M_PSEUDO_HALT, M_PSEUDO_CALL, M_PSEUDO_MV, M_PSEUDO_LI, M_PSEUDO_RET, M_PSEUDO_J,
 
     M_COUNT
 } Mnemonic;
@@ -166,6 +166,7 @@ static u32 mnemonic_operand_count(u8 mnemonic)
     case M_PSEUDO_LI:
         return 2;
     case M_PSEUDO_CALL:
+    case M_PSEUDO_J:
         return 1;
     case M_PSEUDO_HALT:
     case M_PSEUDO_RET:
@@ -587,9 +588,9 @@ static void assemble_next_inst(Assembler *ass)
     printf("mnemonic: %s\n", mnemonic);
     for (u32 i = 0; i < n_ops; i++) {
         if (ops[i].kind == OP_REG) {
-            printf("%d: x%d\n", i, ops[i].reg_id);
+            printf("%d: x%d/%s\n", i, ops[i].reg_id, reg_names[ops[i].reg_id]);
         } else if (ops[i].kind == OP_INDIRECT) {
-            printf("%d: %d(x%d)\n", i, ops[i].imm, ops[i].reg_id);
+            printf("%d: %d(x%d/%s)\n", i, ops[i].imm, ops[i].reg_id, reg_names[ops[i].reg_id]);
         } else {
             printf("%d: %d\n", i, ops[i].imm);
         }
@@ -623,6 +624,9 @@ static void assemble_next_inst(Assembler *ass)
         break;
     case M_PSEUDO_MV:
         emit_instruction(ass, encode_inst(ass, M_ADDI, ops[0].reg_id, ops[1].reg_id, -1, 0));
+        break;
+    case M_PSEUDO_J:
+        emit_instruction(ass, encode_inst(ass, M_JAL, REG_ZERO, -1, -1, ops[0].imm));
         break;
     case M_PSEUDO_LI: {
         // TODO: If the imm fits in 12 bits then we can ommit the LUI instruction
