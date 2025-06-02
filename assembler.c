@@ -93,7 +93,7 @@ typedef enum {
 typedef struct {
     OperandKind kind;
     s32 reg_id;
-    u32 imm;
+    s32 imm;
     u8 label[64];
 } Operand;
 
@@ -105,7 +105,7 @@ static u8 next_u8(Assembler *ass)
     return c;
 }
 
-static u32 parse_u32(u8 *s)
+static s32 parse_s32(u8 *s)
 {
     return strtoul((char*)s, NULL, 0);
 }
@@ -155,7 +155,10 @@ static u32 mnemonic_operand_count(u8 mnemonic)
     case M_AUIPC:
     case M_JAL:
     case M_LW:
+    case M_SB:
+    case M_SH:
     case M_SW:
+    case M_SD:
     case M_PSEUDO_MV:
         return 2;
     case M_PSEUDO_CALL:
@@ -398,7 +401,7 @@ static Operand next_operand(Assembler *ass)
         }
         ass->pos--;
         imm[i] = 0;
-        operand.imm = parse_u32(imm);
+        operand.imm = parse_s32(imm);
         if (c != '(') {
             operand.kind = OP_IMM;
         } else {
@@ -574,7 +577,7 @@ static void assemble_next_inst(Assembler *ass)
 
     skip_until_next_line(ass);
 
-#if 1
+#if 0
     /* Debug instruction */
     printf("mnemonic: %s\n", mnemonic);
     printf("rd: %d\n", ops[0].reg_id);
