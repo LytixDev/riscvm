@@ -496,9 +496,8 @@ static void resolve_labels(Assembler *ass)
         }
         hashmap_sput(&ass->labels, label_name, 
                      (u32 *)(size_t)(ass->inst_byte_offset + 1), sizeof(u32 *), false);
-        if (c != '\n') {
-            skip_until_next_line(ass);
-        }
+
+        skip_until_next_line(ass);
     }
 
     /* Reset pos before the next pass */
