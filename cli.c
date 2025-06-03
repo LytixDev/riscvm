@@ -67,6 +67,8 @@ void run_all_tests(void)
     run_test("tests/add_call.s", "tests/add_call.regs");
     run_test("tests/fib_16.s", "tests/fib_16.regs");
     run_test("tests/bubble_sort.s", "tests/bubble_sort.regs");
+    // Instruction stream is wrong what da hell
+    run_test("tests/mul.s", "tests/mul.regs");
 }
 
 void assemble_and_save(u8 *input_file)

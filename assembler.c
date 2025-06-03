@@ -45,6 +45,10 @@ char *mnemonics[] = {
     "addi", "slti", "sltiu", "xori", "ori", "andi", "slli", "srli", "srai",
     "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and",
     "addiw", "slliw", "srliw", "sraiw", "addw", "subw", "sllw", "srlw", "sraw",
+    /* M-extension */
+    "mul", "mulh", "mulhsu", "mulhu", "mulw", 
+    "div", "divu", "divw", "divuw", "rem",
+    "remu", "remw", "remuw",
     /* Pseudo instructions */ 
     "halt", "call", "mv", "li", "ret", "j"
 };
@@ -60,6 +64,11 @@ typedef enum {
     M_SRL, M_SRA, M_OR, M_AND,
     M_ADDIW, M_SLLIW, M_SRLIW, M_SRAIW,
     M_ADDW, M_SUBW, M_SLLW, M_SRLW, M_SRAW,
+    /* M-extension */
+    M_MUL, M_MULH, M_MULHSU, M_MULHU, M_MULW, 
+    M_DIV, M_DIVU, M_DIVW, M_DIVUW, M_REM,
+    M_REMU, M_REMW, M_REMUW,
+    /* Pseudo instructions */ 
     M_PSEUDO_HALT, M_PSEUDO_CALL, M_PSEUDO_MV, M_PSEUDO_LI, M_PSEUDO_RET, M_PSEUDO_J,
 
     M_COUNT
@@ -154,6 +163,9 @@ static u32 mnemonic_operand_count(u8 mnemonic)
     case M_LUI:
     case M_AUIPC:
     case M_JAL:
+    case M_LBU:
+    case M_LHU:
+    case M_LWU:
     case M_LB:
     case M_LH:
     case M_LW:
@@ -316,6 +328,23 @@ static u32 encode_inst(Assembler *ass, u32 mnemonic_id, s32 rd, s32 rs1, s32 rs2
         return encode_rtype(rd, rs1, imm & 63, OPCODE_OP_IMM, FUNCT7_SRL, FUNCT3_SRL_SRA);
     case M_SRAI:
         return encode_rtype(rd, rs1, imm & 63, OPCODE_OP_IMM, FUNCT7_SRA, FUNCT3_SRL_SRA);
+    /* M-extension */
+    case M_MUL:
+        return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_MEXTENSION, FUNCT3_MUL);
+    case M_MULH:
+        return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_MEXTENSION, FUNCT3_MULH);
+    case M_MULHSU:
+        return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_MEXTENSION, FUNCT3_MULHSU);
+    case M_MULHU:
+        return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_MEXTENSION, FUNCT3_MULHU);
+    case M_DIV:
+        return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_MEXTENSION, FUNCT3_DIV);
+    case M_DIVU:
+        return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_MEXTENSION, FUNCT3_DIVU);
+    case M_REM:
+        return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_MEXTENSION, FUNCT3_REM);
+    case M_REMU:
+        return encode_rtype(rd, rs1, rs2, OPCODE_OP, FUNCT7_MEXTENSION, FUNCT3_REMU);
 
     /* I-type */
     case M_ADDI:
@@ -582,7 +611,7 @@ static void assemble_next_inst(Assembler *ass)
 
     skip_until_next_line(ass);
 
-#if 0
+#if 1
     /* Debug instruction */
     printf("mnemonic: %s\n", mnemonic);
     for (u32 i = 0; i < n_ops; i++) {

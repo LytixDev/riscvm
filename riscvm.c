@@ -127,56 +127,113 @@ bool execute_instruction(RiscVM *vm, u32 inst)
         u8 rs2 = (inst >> 20) & 0b11111; // 5 bits for rs2
         u8 funct7 = (inst >> 25) & 0b1111111;
 
-        switch (funct3) {
-        case FUNCT3_ADD_SUB:
-            if (funct7 == FUNCT7_ADD) {
-                reg_write(vm, rd, vm->regs[rs1] + vm->regs[rs2]);
-                debug_print("ADD x%d, x%d, x%d\n", rd, rs1, rs2);
-            } else if (funct7 == FUNCT7_SUB) {
-                reg_write(vm, rd, vm->regs[rs1] - vm->regs[rs2]);
-                debug_print("SUB x%d, x%d, x%d\n", rd, rs1, rs2);
+        if (funct7 == FUNCT7_MEXTENSION) {
+            switch (funct3) {
+            case FUNCT3_MUL:
+                reg_write(vm, rd, vm->regs[rs1] * vm->regs[rs2]);
+                debug_print("MUL x%d, x%d, x%d\n", rd, rs1, rs2);
+                break;
+            case FUNCT3_DIV: {
+                s64 dividend = vm->regs[rs1];
+                s64 divisor = vm->regs[rs2];
+                if (divisor == 0) {
+                    // TODO: Exception?
+                    reg_write(vm, rd, -1);
+                } else {
+                    reg_write(vm, rd, dividend / divisor);
+                }
+                debug_print("DIV x%d, x%d, x%d\n", rd, rs1, rs2);
+            }; break;
+            case FUNCT3_DIVU: {
+                u64 dividend = (u64)vm->regs[rs1];
+                u64 divisor = (u64)vm->regs[rs2];
+                if (divisor == 0) {
+                    // TODO: Exception?
+                    reg_write(vm, rd, -1);
+                } else {
+                    reg_write(vm, rd, dividend / divisor);
+                }
+                debug_print("DIVU x%d, x%d, x%d\n", rd, rs1, rs2);
+            }; break;
+            case FUNCT3_REM: {
+                s64 dividend = (s64)vm->regs[rs1];
+                s64 divisor = (s64)vm->regs[rs2];
+                if (divisor == 0) {
+                    // TODO: Exception?
+                    reg_write(vm, rd, -1);
+                } else {
+                    reg_write(vm, rd, dividend % divisor);
+                }
+                debug_print("REM x%d, x%d, x%d\n", rd, rs1, rs2);
+            }; break;
+            case FUNCT3_REMU: {
+                u64 dividend = (u64)vm->regs[rs1];
+                u64 divisor = (u64)vm->regs[rs2];
+                if (divisor == 0) {
+                    // TODO: Exception?
+                    reg_write(vm, rd, -1);
+                } else {
+                    reg_write(vm, rd, dividend % divisor);
+                }
+                debug_print("REM x%d, x%d, x%d\n", rd, rs1, rs2);
+            }; break;
+            default:
+                // TODO: invalid instruction
+                debug_print("Unknown M-extension 32-bit funct3=0x%X\n", funct3);
+                break;
             }
-            break;
-        case FUNCT3_SLL:
-            // TODO: redundant to check for funct7? Ommited for the rest of the cases
-            if (funct7 == FUNCT7_SLL) {
-                reg_write(vm, rd, vm->regs[rs1] << (vm->regs[rs2] & 63));
-                debug_print("SLL x%d, x%d, x%d\n", rd, rs1, rs2);
+        } else {
+            switch (funct3) {
+            case FUNCT3_ADD_SUB:
+                if (funct7 == FUNCT7_ADD) {
+                    reg_write(vm, rd, vm->regs[rs1] + vm->regs[rs2]);
+                    debug_print("ADD x%d, x%d, x%d\n", rd, rs1, rs2);
+                } else if (funct7 == FUNCT7_SUB) {
+                    reg_write(vm, rd, vm->regs[rs1] - vm->regs[rs2]);
+                    debug_print("SUB x%d, x%d, x%d\n", rd, rs1, rs2);
+                }
+                break;
+            case FUNCT3_SLL:
+                // TODO: redundant to check for funct7? Ommited for the rest of the cases
+                if (funct7 == FUNCT7_SLL) {
+                    reg_write(vm, rd, vm->regs[rs1] << (vm->regs[rs2] & 63));
+                    debug_print("SLL x%d, x%d, x%d\n", rd, rs1, rs2);
+                }
+                break;
+            case FUNCT3_SLT:
+                reg_write(vm, rd, (s64)vm->regs[rs1] < (s64)vm->regs[rs2]);
+                debug_print("SLT x%d, x%d, x%d\n", rd, rs1, rs2);
+                break;
+            case FUNCT3_SLTU:
+                reg_write(vm, rd, vm->regs[rs1] < vm->regs[rs2]);
+                debug_print("SLTU x%d, x%d, x%d\n", rd, rs1, rs2);
+                break;
+            case FUNCT3_XOR:
+                reg_write(vm, rd, vm->regs[rs1] ^ vm->regs[rs2]);
+                debug_print("XOR x%d, x%d, x%d\n", rd, rs1, rs2);
+                break;
+            case FUNCT3_SRL_SRA:
+                if (funct7 == FUNCT7_SRL) {
+                    reg_write(vm, rd, vm->regs[rs1] >> (vm->regs[rs2] & 63));
+                    debug_print("SRL x%d, x%d, x%d\n", rd, rs1, rs2);
+                } else if (funct7 == FUNCT7_SRA) {
+                    reg_write(vm, rd, (s64)vm->regs[rs1] >> (vm->regs[rs2] & 63));
+                    debug_print("SRA x%d, x%d, x%d\n", rd, rs1, rs2);
+                }
+                break;
+            case FUNCT3_OR:
+                reg_write(vm, rd, vm->regs[rs1] | vm->regs[rs2]);
+                debug_print("OR x%d, x%d, x%d\n", rd, rs1, rs2);
+                break;
+            case FUNCT3_AND:
+                reg_write(vm, rd, vm->regs[rs1] & vm->regs[rs2]);
+                debug_print("AND x%d, x%d, x%d\n", rd, rs1, rs2);
+                break;
+            default:
+                // TODO: invalid instruction
+                debug_print("Unknown R-type funct3=0x%X\n", funct3);
+                break;
             }
-            break;
-        case FUNCT3_SLT:
-            reg_write(vm, rd, (s64)vm->regs[rs1] < (s64)vm->regs[rs2]);
-            debug_print("SLT x%d, x%d, x%d\n", rd, rs1, rs2);
-            break;
-        case FUNCT3_SLTU:
-            reg_write(vm, rd, vm->regs[rs1] < vm->regs[rs2]);
-            debug_print("SLTU x%d, x%d, x%d\n", rd, rs1, rs2);
-            break;
-        case FUNCT3_XOR:
-            reg_write(vm, rd, vm->regs[rs1] ^ vm->regs[rs2]);
-            debug_print("XOR x%d, x%d, x%d\n", rd, rs1, rs2);
-            break;
-        case FUNCT3_SRL_SRA:
-            if (funct7 == FUNCT7_SRL) {
-                reg_write(vm, rd, vm->regs[rs1] >> (vm->regs[rs2] & 63));
-                debug_print("SRL x%d, x%d, x%d\n", rd, rs1, rs2);
-            } else if (funct7 == FUNCT7_SRA) {
-                reg_write(vm, rd, (s64)vm->regs[rs1] >> (vm->regs[rs2] & 63));
-                debug_print("SRA x%d, x%d, x%d\n", rd, rs1, rs2);
-            }
-            break;
-        case FUNCT3_OR:
-            reg_write(vm, rd, vm->regs[rs1] | vm->regs[rs2]);
-            debug_print("OR x%d, x%d, x%d\n", rd, rs1, rs2);
-            break;
-        case FUNCT3_AND:
-            reg_write(vm, rd, vm->regs[rs1] & vm->regs[rs2]);
-            debug_print("AND x%d, x%d, x%d\n", rd, rs1, rs2);
-            break;
-        default:
-            // TODO: invalid instruction
-            debug_print("Unknown R-type funct3=0x%X\n", funct3);
-            break;
         }
     }; break;
     /*

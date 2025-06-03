@@ -113,6 +113,16 @@ typedef enum {
     /* JALR */
     FUNCT3_JALR     = 0b000,
 
+    /* M-Extension */
+    FUNCT3_MUL      = 0b000,
+    FUNCT3_MULH     = 0b001,
+    FUNCT3_MULHSU   = 0b010,
+    FUNCT3_MULHU    = 0b011,
+    FUNCT3_DIV      = 0b100,
+    FUNCT3_DIVU     = 0b101,
+    FUNCT3_REM      = 0b110,
+    FUNCT3_REMU     = 0b111,
+
     // /* SYSTEM */
     // FUNCT3_PRIV     = 0b000,
     // FUNCT3_CSRRW    = 0b001,
@@ -146,6 +156,9 @@ typedef enum {
     FUNCT7_SLLW     = 0b0000000,
     FUNCT7_SRLW     = 0b0000000,
     FUNCT7_SRAW     = 0b0100000,
+
+    /* M-extension */
+    FUNCT7_MEXTENSION = 0b0000001,
 
     /* TODO: SYSTEM instructions. May just implement it as a single instruction. */
     //FUNCT7_SYSTEM   = 0b0000000
